@@ -379,6 +379,9 @@ function sanitizeHtml(html: string): string {
         el.removeAttribute("height");
       }
     });
+    // 清理原页面代码块自带的行号和语言标签（CSDN/highlight.js/prismjs 等）
+    // 这些元素脱离原页面 CSS 后会错位显示在代码块下方
+    cleanCodeBlockDecorations(tmp);
     cleaned = tmp.innerHTML;
   } catch {
     // DOM 解析失败时降级为正则清理（可能误删 img 的属性，但不影响功能）
@@ -389,6 +392,85 @@ function sanitizeHtml(html: string): string {
       .replace(/\s+height='[^']*'/gi, "");
   }
   return cleaned;
+}
+
+// 清理代码块装饰元素：行号、语言标签、复制按钮等
+// 只做减法，不添加任何功能
+function cleanCodeBlockDecorations(root: Element): void {
+  // 1. 已知 class 的行号元素
+  root.querySelectorAll(
+    '.hljs-ln-numbers,.hljs-ln-n,.line-number,.line-num,.line-numbers,.ln-num,.ln-number,' +
+    '[data-line-number],.code-line-number,.td-line-number,.blob-num'
+  ).forEach(el => el.remove());
+
+  // 2. pre 内的 ol/ul 纯数字行号
+  root.querySelectorAll("pre > ol, pre > ul").forEach(list => {
+    list.querySelectorAll("li").forEach(li => {
+      if (/^\d+$/.test((li.textContent || "").trim())) li.remove();
+    });
+  });
+
+  // 3. pre table 的纯数字首列
+  root.querySelectorAll("pre table").forEach(table => {
+    table.querySelectorAll("tr > td:first-child, tr > th:first-child").forEach(cell => {
+      if (/^\d+$/.test((cell.textContent || "").trim())) cell.remove();
+    });
+  });
+
+  // 4. 已知 class 的语言标签和工具栏
+  root.querySelectorAll(
+    '.code-language,.code-lang,.lang-label,.language-label,' +
+    '.hljs-lang,.code-title,.code-toolbar,.toolbar'
+  ).forEach(el => el.remove());
+
+  // 5. pre 内的纯数字行号 span
+  root.querySelectorAll("pre").forEach(pre => {
+    pre.querySelectorAll('span[class*="number"], span[class*="line-num"], span[class*="ln-num"]').forEach(span => {
+      if (/^\d+$/.test((span.textContent || "").trim())) span.remove();
+    });
+  });
+
+  // 6. pre 后面紧邻的 ul/ol：如果所有 li 都是纯数字且递增，整条移除（CSDN 行号）
+  root.querySelectorAll("pre").forEach(pre => {
+    let sibling = pre.nextElementSibling;
+    while (sibling && (sibling.tagName === "UL" || sibling.tagName === "OL")) {
+      const items = sibling.querySelectorAll("li");
+      let allNumbers = items.length > 0;
+      let prevNum = 0;
+      for (const li of Array.from(items)) {
+        const t = (li.textContent || "").trim();
+        if (!/^\d+$/.test(t)) { allNumbers = false; break; }
+        const n = parseInt(t, 10);
+        if (n <= prevNum) { allNumbers = false; break; }
+        prevNum = n;
+      }
+      const next = sibling.nextElementSibling;
+      if (allNumbers) sibling.remove();
+      sibling = next;
+    }
+  });
+
+  // 7. pre 后面紧邻的短文本：如果看起来像语言名（<15字符），移除
+  const LANG_RE = /^(xml|html|css|javascript|js|typescript|ts|java|python|bash|shell|sql|json|yaml|yml|go|rust|c|c\+\+|cpp|c#|cs|ruby|php|swift|kotlin|dart|vue|react|markdown|md|plain|text|ini|conf|nginx|dockerfile|makefile|protobuf|gradle|maven|pom)$/i;
+  root.querySelectorAll("pre").forEach(pre => {
+    let sibling = pre.nextElementSibling;
+    let count = 0;
+    while (sibling && count < 3) {
+      const tag = sibling.tagName.toLowerCase();
+      if (["p", "span", "div", "em", "strong", "small"].includes(tag)) {
+        const text = (sibling.textContent || "").trim();
+        if (text.length > 0 && text.length < 15 && LANG_RE.test(text)) {
+          const next = sibling.nextElementSibling;
+          sibling.remove();
+          sibling = next;
+          count++;
+          continue;
+        }
+      }
+      if (["pre", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "table", "hr"].includes(tag)) break;
+      break;
+    }
+  });
 }
 
 function stripHtml(html: string): string {

@@ -138,7 +138,7 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-article pre{margin:1.2em 0;padding:16px 20px;background:var(--ir-code-bg);border-radius:8px;font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;overflow-x:auto;line-height:1.6}
 .ir-article code{font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;background:var(--ir-code-bg);padding:2px 6px;border-radius:4px}
 .ir-article pre code{background:none;padding:0}
-.ir-article img,.ir-article video,.ir-article canvas,.ir-article embed,.ir-article object,.ir-article svg,.ir-article iframe{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px}
+.ir-article img,.ir-article video,.ir-article canvas,.ir-article embed,.ir-article object,.ir-article svg,.ir-article iframe{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px;cursor:zoom-in}
 .ir-article picture{display:block;margin:1.5em auto;text-align:center}
 .ir-article picture img{margin:0}
 .ir-article ul,.ir-article ol{margin:1em 0;padding-left:1.5em}
@@ -164,6 +164,12 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-toc-l4{padding-left:56px;font-size:12px}
 .ir-math{font-family:"Times New Roman","STIX Two Text","Latin Modern Math",serif;font-style:italic;padding:0 2px}
 .ir-footer{text-align:center;color:var(--ir-muted);font-size:.85em;margin-top:60px;padding-top:24px;border-top:1px solid var(--ir-border)}
+.ir-article figcaption{text-align:center;font-size:.85em;color:var(--ir-muted);margin:.6em 0 1.5em;font-style:italic}
+.ir-article figure{margin:1.5em 0}
+.ir-article figure img{margin:0 auto}
+.ir-lb{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);align-items:center;justify-content:center;cursor:zoom-out}
+.ir-lb.open{display:flex}
+.ir-lb img{max-width:92vw;max-height:92vh;object-fit:contain;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5);cursor:default}
 @media print{.ir-toolbar{display:none}.ir-container{padding:0;max-width:none}}
 @media(max-width:768px){.ir-container{padding:24px 16px 60px}.ir-headline{font-size:1.5em}}
 @media(max-width:480px){.ir-container{padding:16px 12px 40px}.ir-headline{font-size:1.3em}}`;
@@ -294,6 +300,86 @@ function buildReaderView(content: ExtractedContent) {
 
     document.replaceChild(html, document.documentElement);
 
+    // 清理原页面代码块自带的行号和语言标签（所有提取路径的兜底）
+    // sanitizeHtml 只作用于 Readability 路径，fallback/density 路径需在此清理
+    try {
+      const article = document.querySelector(".ir-article");
+      if (article) {
+        // 1. 已知 class 的行号元素
+        article.querySelectorAll(
+          '.hljs-ln-numbers,.hljs-ln-n,.line-number,.line-num,.line-numbers,.ln-num,.ln-number,' +
+          '[data-line-number],.code-line-number,.td-line-number,.blob-num'
+        ).forEach(el => el.remove());
+        // 2. pre 内的 ol/ul 纯数字行号
+        article.querySelectorAll("pre > ol, pre > ul").forEach(list => {
+          list.querySelectorAll("li").forEach(li => {
+            if (/^\d+$/.test((li.textContent || "").trim())) li.remove();
+          });
+        });
+        // 3. pre table 的纯数字首列
+        article.querySelectorAll("pre table").forEach(table => {
+          table.querySelectorAll("tr > td:first-child, tr > th:first-child").forEach(cell => {
+            if (/^\d+$/.test((cell.textContent || "").trim())) cell.remove();
+          });
+        });
+        // 4. 已知 class 的语言标签和工具栏
+        article.querySelectorAll(
+          '.code-language,.code-lang,.lang-label,.language-label,' +
+          '.hljs-lang,.code-title,.code-toolbar,.toolbar'
+        ).forEach(el => el.remove());
+        // 5. pre 内的纯数字行号 span
+        article.querySelectorAll("pre").forEach(pre => {
+          pre.querySelectorAll('span[class*="number"], span[class*="line-num"], span[class*="ln-num"]').forEach(span => {
+            if (/^\d+$/.test((span.textContent || "").trim())) span.remove();
+          });
+        });
+        // 6. pre 后面紧邻的 ul/ol：如果所有 li 都是纯数字，整条移除（CSDN 行号）
+        article.querySelectorAll("pre").forEach(pre => {
+          let sibling = pre.nextElementSibling;
+          while (sibling && (sibling.tagName === "UL" || sibling.tagName === "OL")) {
+            const items = sibling.querySelectorAll("li");
+            let allNumbers = items.length > 0;
+            let prevNum = 0;
+            for (const li of items) {
+              const t = (li.textContent || "").trim();
+              if (!/^\d+$/.test(t)) { allNumbers = false; break; }
+              const n = parseInt(t, 10);
+              if (n <= prevNum) { allNumbers = false; break; }
+              prevNum = n;
+            }
+            const next = sibling.nextElementSibling;
+            if (allNumbers) sibling.remove();
+            sibling = next;
+          }
+        });
+        // 7. pre 后面紧邻的短文本：如果看起来像语言名（<15字符，全字母数字），移除
+        const LANG_RE = /^(xml|html|css|javascript|js|typescript|ts|java|python|bash|shell|sql|json|yaml|yml|go|rust|c|c\+\+|cpp|c#|cs|ruby|php|swift|kotlin|dart|vue|react|markdown|md|plain|text|ini|conf|nginx|dockerfile|makefile|protobuf|gradle|maven|pom)$/i;
+        article.querySelectorAll("pre").forEach(pre => {
+          let sibling = pre.nextElementSibling;
+          let count = 0;
+          while (sibling && count < 3) {
+            const tag = sibling.tagName.toLowerCase();
+            // 只检查行内/短文本容器
+            if (["p", "span", "div", "em", "strong", "small"].includes(tag)) {
+              const text = (sibling.textContent || "").trim();
+              if (text.length > 0 && text.length < 15 && LANG_RE.test(text)) {
+                const next = sibling.nextElementSibling;
+                sibling.remove();
+                sibling = next;
+                count++;
+                continue;
+              }
+            }
+            // 遇到块级元素或非语言文本就停
+            if (["pre", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "table", "hr"].includes(tag)) break;
+            break;
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("[ImmerseReader] 代码块装饰清理失败，跳过", err);
+    }
+
     // Load Google Fonts async — never blocks rendering
     loadGoogleFontsAsync();
 
@@ -306,6 +392,56 @@ function buildReaderView(content: ExtractedContent) {
     document.getElementById("ir-summarize")?.addEventListener("click", () => {
       showToast("AI 摘要功能将在 Phase 2 中实现");
     });
+
+    // ==== Lightbox for images ====
+    (function initLightbox() {
+      // Lazily create lightbox DOM once
+      let lb: HTMLElement | null = null;
+      let lbImg: HTMLImageElement | null = null;
+
+      function openLightbox(src: string) {
+        if (!lb) {
+          lb = document.createElement("div");
+          lb.className = "ir-lb";
+          lb.setAttribute("role", "dialog");
+          lb.setAttribute("aria-label", "图片放大查看");
+          lbImg = document.createElement("img");
+          lb.appendChild(lbImg);
+          lb.addEventListener("click", (e) => {
+            if (e.target === lb) closeLightbox();
+          });
+          document.body.appendChild(lb);
+        }
+        if (lbImg) {
+          lbImg.src = src;
+          lbImg.alt = "";
+        }
+        lb.classList.add("open");
+      }
+
+      function closeLightbox() {
+        lb?.classList.remove("open");
+        if (lbImg) lbImg.src = "";
+      }
+
+      // Esc to close
+      function onKeyDown(e: KeyboardEvent) {
+        if (e.key === "Escape") closeLightbox();
+      }
+      document.addEventListener("keydown", onKeyDown);
+
+      // Bind click to all article images
+      document.querySelectorAll(".ir-article img").forEach((img) => {
+        img.addEventListener("click", () => {
+          const src = (img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src;
+          if (src) openLightbox(src);
+        });
+      });
+
+      // Cleanup on deactivate
+      const origDeactivate = doDeactivate;
+      (window as any).__ir_deactivate = origDeactivate;
+    })();
 
     // ==== Build TOC sidebar ====
     const tocList = document.getElementById("ir-toc-list");
