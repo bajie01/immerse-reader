@@ -1,0 +1,309 @@
+/* === ImmerseReader — Reader View Styles === */
+html[data-ir-theme] {
+  --ir-font-size: 18px;
+  --ir-line-height: 1.8;
+  --ir-max-width: 720px;
+  --ir-toolbar-height: 48px;
+}
+
+/* Light Theme (default) */
+html[data-ir-theme="light"] {
+  --ir-bg: #faf9f6;
+  --ir-text: #1a1a1a;
+  --ir-heading: #0a0a0a;
+  --ir-muted: #666;
+  --ir-border: #e0ddd5;
+  --ir-toolbar-bg: rgba(250, 249, 246, 0.95);
+  --ir-link: #2563eb;
+  --ir-code-bg: #f1f0ed;
+  --ir-blockquote-border: #c4b998;
+  --ir-blockquote-bg: #f3f0ea;
+}
+
+/* Sepia / Paper */
+html[data-ir-theme="sepia"] {
+  --ir-bg: #f4e8c1;
+  --ir-text: #3b3226;
+  --ir-heading: #2a2218;
+  --ir-muted: #7a6b50;
+  --ir-border: #d4c4a0;
+  --ir-toolbar-bg: rgba(244, 232, 193, 0.95);
+  --ir-link: #8b5e3c;
+  --ir-code-bg: #e8dcc0;
+  --ir-blockquote-border: #b8a888;
+  --ir-blockquote-bg: #ede0c0;
+}
+
+/* Dark / Night */
+html[data-ir-theme="dark"] {
+  --ir-bg: #1a1a2e;
+  --ir-text: #e0d6c8;
+  --ir-heading: #f0ebe0;
+  --ir-muted: #9a8f80;
+  --ir-border: #2d2d44;
+  --ir-toolbar-bg: rgba(26, 26, 46, 0.95);
+  --ir-link: #7eb8f0;
+  --ir-code-bg: #222240;
+  --ir-blockquote-border: #4a4a6a;
+  --ir-blockquote-bg: #22223a;
+}
+
+/* Green / Eye Care */
+html[data-ir-theme="green"] {
+  --ir-bg: #c7edcc;
+  --ir-text: #1a3b2e;
+  --ir-heading: #0a2a1e;
+  --ir-muted: #3d6b50;
+  --ir-border: #a8d4b0;
+  --ir-toolbar-bg: rgba(199, 237, 204, 0.95);
+  --ir-link: #1a6b40;
+  --ir-code-bg: #b8e0c0;
+  --ir-blockquote-border: #8ab898;
+  --ir-blockquote-bg: #b8e0c0;
+}
+
+/* Font families */
+html[data-ir-font="serif"] { --ir-font: "Literata", "Noto Serif SC", "Georgia", serif; }
+html[data-ir-font="sans"]  { --ir-font: "Noto Sans SC", "Inter", "Helvetica Neue", sans-serif; }
+html[data-ir-font="mono"]  { --ir-font: "JetBrains Mono", "Fira Code", "Consolas", monospace; }
+
+/* === Layout === */
+html[data-ir-theme], html[data-ir-theme] body {
+  margin: 0;
+  padding: 0;
+  background: var(--ir-bg);
+  color: var(--ir-text);
+  font-family: var(--ir-font);
+  font-size: var(--ir-font-size);
+  line-height: var(--ir-line-height);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ir-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--ir-toolbar-height);
+  padding: 0 16px;
+  background: var(--ir-toolbar-bg);
+  border-bottom: 1px solid var(--ir-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ir-toolbar-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.85em;
+  color: var(--ir-muted);
+}
+
+.ir-toolbar-right {
+  display: flex;
+  gap: 4px;
+}
+
+.ir-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ir-text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ir-btn:hover {
+  background: var(--ir-border);
+  border-color: var(--ir-border);
+}
+
+.ir-btn-close {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ir-container {
+  max-width: var(--ir-max-width);
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.ir-header {
+  margin-bottom: 48px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--ir-border);
+}
+
+.ir-headline {
+  font-size: 2em;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--ir-heading);
+  margin: 0 0 12px;
+  letter-spacing: -0.01em;
+}
+
+.ir-byline {
+  color: var(--ir-muted);
+  font-size: 0.9em;
+  margin: 0 0 4px;
+}
+
+.ir-sitename {
+  color: var(--ir-muted);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* === Article Content === */
+.ir-article {
+  word-wrap: break-word;
+}
+
+.ir-article p {
+  margin: 0 0 1.2em;
+}
+
+.ir-article h1, .ir-article h2, .ir-article h3, .ir-article h4 {
+  color: var(--ir-heading);
+  line-height: 1.3;
+  margin: 1.8em 0 0.6em;
+  font-weight: 600;
+}
+
+.ir-article h1 { font-size: 1.6em; }
+.ir-article h2 { font-size: 1.4em; }
+.ir-article h3 { font-size: 1.2em; }
+
+.ir-article a {
+  color: var(--ir-link);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.ir-article a:hover {
+  border-bottom-color: var(--ir-link);
+}
+
+.ir-article blockquote {
+  margin: 1.5em 0;
+  padding: 8px 20px;
+  border-left: 4px solid var(--ir-blockquote-border);
+  background: var(--ir-blockquote-bg);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  color: var(--ir-muted);
+}
+
+.ir-article pre {
+  margin: 1.2em 0;
+  padding: 16px 20px;
+  background: var(--ir-code-bg);
+  border-radius: 8px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85em;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.ir-article code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85em;
+  background: var(--ir-code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ir-article pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.ir-article img {
+  max-width: 100%;
+  height: auto;
+  margin: 1.5em auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.ir-article ul, .ir-article ol {
+  margin: 1em 0;
+  padding-left: 1.5em;
+}
+
+.ir-article li {
+  margin-bottom: 0.4em;
+}
+
+.ir-article hr {
+  border: none;
+  border-top: 1px solid var(--ir-border);
+  margin: 2em 0;
+}
+
+.ir-article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.9em;
+}
+
+.ir-article th, .ir-article td {
+  padding: 10px 14px;
+  border: 1px solid var(--ir-border);
+  text-align: left;
+}
+
+.ir-article th {
+  background: var(--ir-code-bg);
+  font-weight: 600;
+  color: var(--ir-heading);
+}
+
+.ir-footer {
+  text-align: center;
+  color: var(--ir-muted);
+  font-size: 0.85em;
+  margin-top: 60px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ir-border);
+}
+
+/* === Fullscreen tweaks === */
+.ir-container:-webkit-full-screen {
+  padding-top: 24px;
+}
+
+.ir-container:fullscreen {
+  padding-top: 24px;
+}
+
+/* === Print styles === */
+@media print {
+  .ir-toolbar { display: none; }
+  .ir-container { padding: 0; max-width: none; }
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  .ir-container { padding: 24px 16px 60px; }
+  .ir-headline { font-size: 1.5em; }
+  .ir-toolbar { height: 44px; }
+}

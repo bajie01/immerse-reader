@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>一个测试文章 — 可以用来验证 ImmerseReader</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+    h1 { font-size: 28px; }
+    .meta { color: #666; font-size: 14px; }
+    img { max-width: 100%; border-radius: 8px; margin: 20px 0; }
+    blockquote { margin: 20px 0; padding: 10px 20px; border-left: 4px solid #ccc; background: #f9f9f9; }
+    pre { background: #f4f4f4; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f4f4f4; }
+  </style>
+</head>
+<body>
+  <article>
+    <h1>为什么阅读体验本身，就是一种生产力工具</h1>
+    <p class="meta">作者：张明远 · 2026 年 6 月 23 日 · 来源：读享实验室</p>
+
+    <p>在信息过载的时代，我们每天消耗在阅读上的时间越来越多，但理解的效率却在下降。这不是因为我们读得不够多，而是因为——<strong>我们读东西的环境太嘈杂了。</strong></p>
+
+    <p>打开任何一个网页，导航栏、侧栏广告、推荐模块、评论区、弹窗……这些元素像噪音一样争夺着你的注意力。每一处闪烁的动效、每一个"你可能也喜欢"的卡片，都在把你的注意力从内容本身拉开。</p>
+
+    <blockquote>
+      <p>"The web is great, but reading on the web is terrible."</p>
+      <cite>— 某位产品经理的日常感慨</cite>
+    </blockquote>
+
+    <h2>专注的阅读，需要被设计</h2>
+
+    <p>Kindle 的成功不止是因为它的硬件，更是因为它从头到尾只做一件事：让你读书。<strong>当你翻开一本 Kindle 书，屏幕上没有任何干扰你的东西</strong>——没有通知、没有广告、没有无关的链接。只有文字、留白，和一种安静的存在感。</p>
+
+    <p>但在浏览器里读文章，我们面对的是完全相反的体验。浏览器本身就是一个多任务环境，Tab 栏里还开着十来个其他页面，随时等着把你的注意力拽走。</p>
+
+    <h3>沉浸式阅读的三层价值</h3>
+
+    <ol>
+      <li><strong>生理层</strong>：合适的行距、字号、对比度和字体，减轻视觉疲劳</li>
+      <li><strong>认知层</strong>：排除干扰后，大脑可以更专注地处理信息，理解深度提升</li>
+      <li><strong>情绪层</strong>：干净的阅读环境带来从容感和控制感，降低信息焦虑</li>
+    </ol>
+
+    <p>这三层叠加在一起，决定了你读完一篇文章后，是感到"学到了"还是"看完了但啥也没记住"。</p>
+
+    <h2>代码块测试</h2>
+
+<pre><code>function calculateReadingTime(text) {
+  const wordsPerMinute = 250; // 中文约 250 字/分钟
+  const wordCount = text.replace(/\s/g, '').length;
+  return Math.max(1, Math.ceil(wordCount / wordsPerMinute));
+}</code></pre>
+
+    <h2>表格测试</h2>
+
+    <table>
+      <tr><th>模式</th><th>阅读速度</th><th>理解率</th><th>疲劳度</th></tr>
+      <tr><td>原生网页</td><td>350 字/分</td><td>62%</td><td>高</td></tr>
+      <tr><td>沉浸阅读</td><td>420 字/分</td><td>85%</td><td>低</td></tr>
+      <tr><td>纸质书</td><td>380 字/分</td><td>88%</td><td>低</td></tr>
+    </table>
+
+    <h2>列表测试</h2>
+
+    <ul>
+      <li>亮白主题：适合白天光线充足的环境</li>
+      <li>羊皮纸主题：暖色调，适合长时间阅读</li>
+      <li>暗夜主题：适合暗光环境，减少蓝光刺激</li>
+      <li>护眼绿主题：柔和绿色背景，进一步降低疲劳</li>
+    </ul>
+
+    <h2>总结</h2>
+
+    <p>一个好的阅读工具，不只是帮你把网页变漂亮。它的终极目标，是让你在读完一篇文章之后，<strong>真的理解了它</strong>。而这一切的起点，就是一个干净的、专注的、让人愿意读下去的——阅读视图。</p>
+
+    <p>这也是 ImmerseReader 在做的事情。</p>
+
+    <hr>
+
+    <p style="color:#999;font-size:14px;text-align:center;">— 本文为测试文章，用于验证 ImmerseReader Phase 0 的阅读渲染效果 —</p>
+  </article>
+</body>
+</html>

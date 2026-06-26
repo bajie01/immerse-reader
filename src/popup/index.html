@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ImmerseReader</title>
+  <link rel="stylesheet" href="../assets/popup.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>ImmerseReader</h1>
+      <span class="status" id="status">已就绪</span>
+    </header>
+
+    <!-- 阻塞态：默认隐藏，命中业务边界时显示 -->
+    <div id="blockView" class="block-view" hidden>
+      <div class="block-icon" aria-hidden="true">⚠</div>
+      <h2 class="block-title">此页面不适合阅读模式</h2>
+      <p class="block-reason" id="blockReason"></p>
+      <p class="block-hint">建议打开具体文章页后再使用</p>
+      <a href="#" id="forceLink" class="force-link">仍然尝试</a>
+    </div>
+
+    <!-- 正常态 -->
+    <div id="mainView">
+    <button id="toggleBtn" class="btn-primary">进入阅读模式</button>
+    <section class="control-group">
+      <label>主题</label>
+      <div class="theme-row" id="themeRow">
+        <button class="theme-btn active" data-theme="light" style="background:#fff;border-color:#333">☀</button>
+        <button class="theme-btn" data-theme="sepia" style="background:#f4e8c1;border-color:#8b7355">📖</button>
+        <button class="theme-btn" data-theme="dark" style="background:#1a1a2e;border-color:#e8d5b7">🌙</button>
+        <button class="theme-btn" data-theme="green" style="background:#c7edcc;border-color:#2d6a4f">🌿</button>
+      </div>
+   </section>
+    <section class="control-group" id="customThemeGroup" >
+      <label>自定义颜色</label>
+      <div class="color-row">
+        <span class="color-item"><input type="color" id="customBg" value="#faf9f6" title="背景色"></span>
+        <span class="color-item"><input type="color" id="customText" value="#1a1a1a" title="文字色"></span>
+        <span class="color-item"><input type="color" id="customLink" value="#2563eb" title="强调色"></span>
+      </div>
+    </section>
+    <section class="control-group">
+      <label>布局</label>
+      <div class="slider-row">
+        <span class="slider-label">边距</span>
+        <input type="range" id="marginSlider" min="480" max="960" value="720" step="10">
+        <span id="marginLabel">720</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">行高</span>
+        <input type="range" id="lineHeightSlider" min="14" max="24" value="18" step="1">
+        <span id="lineHeightLabel">1.8</span>
+      </div>
+    </section>
+   <section class="control-group">
+      <label>字号</label>
+      <div class="fontsize-row">
+        <button id="fontSmall" class="size-btn">A-</button>
+        <span id="fontSizeLabel">18</span>
+        <button id="fontLarge" class="size-btn">A+</button>
+      </div>
+    </section>
+    <section class="control-group">
+      <label>字体</label>
+      <select id="fontSelect">
+        <option value="serif">衬线 (Literata)</option>
+        <option value="sans">无衬线 (Noto Sans SC)</option>
+        <option value="mono">等宽 (JetBrains Mono)</option>
+      </select>
+    </section>
+    <footer>
+      <kbd>⌃R</kbd> 切换阅读模式
+    </footer>
+    </div><!-- /mainView -->
+  </div>
+  <script type="module" src="../popup.js"></script>
+</body>
+</html>

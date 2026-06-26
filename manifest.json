@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "ImmerseReader",
+  "version": "0.1.0",
+  "description": "一键将任意网页转换为沉浸式阅读体验",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "file:///*"
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_icon": "icon.svg",
+    "default_title": "ImmerseReader"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>",
+        "file:///*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "match_about_blank": false
+    }
+  ],
+  "commands": {
+    "toggle-reader": {
+      "suggested_key": {
+        "default": "Alt+R",
+        "mac": "MacCtrl+R"
+      },
+      "description": "切换沉浸阅读模式"
+    }
+  },
+  "icons": {
+    "128": "icon.svg"
+  }
+}
