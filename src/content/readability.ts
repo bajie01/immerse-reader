@@ -84,10 +84,26 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
     return text.length > 30 && !isAdOrNav(p);
   });
 
+  // 也统计 <div> 里的长文本块：有些站点（如百家号）用 div 而非 p 包裹正文，
+  // 只看 <p> 会漏判。收集直接含长文本的 div（排除子 div 重复计数）。
+  const longDivs = Array.from(doc.querySelectorAll("div")).filter((d) => {
+    if (isAdOrNav(d)) return false;
+    const directText = Array.from(d.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent || "")
+      .join("")
+      .trim();
+    return directText.length > 100;
+  });
+
+  // 安全阀：页面正文总量足够大时，几乎不可能是卡片流，直接放行。
+  // bodyText 已 > 200（开头已判断），这里用更阈值判定。
+  const longParagraphs = paragraphs.filter((p) => (p.textContent || "").trim().length > 200);
+  const totalLongBlocks = longParagraphs.length + longDivs.length;
+
   // 判定 B: 无 <article> 且长段落（>200 字）不足 3 个 且段落数 ≥ 5 → 卡片流
   const hasArticle = !!doc.querySelector("article, [role='article'], [role='main'], main");
-  const longParagraphs = paragraphs.filter((p) => (p.textContent || "").trim().length > 200);
-  if (!hasArticle && longParagraphs.length < 3 && paragraphs.length >= 5) {
+  if (!hasArticle && totalLongBlocks < 3 && paragraphs.length >= 5 && bodyText.length < 1500) {
     return { layer: "dom", reason: "检测为卡片流页面（缺少连续长文段落）" };
   }
 
@@ -95,14 +111,14 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
   if (paragraphs.length >= 8 && paragraphs.length < 500) {
     const lens = paragraphs.map((p) => (p.textContent || "").trim().length).sort((a, b) => a - b);
     const median = lens[Math.floor(lens.length / 2)];
-    if (median < 40 && longParagraphs.length < 2) {
+    if (median < 40 && totalLongBlocks < 2 && bodyText.length < 1500) {
       return { layer: "dom", reason: "检测为卡片流页面（段落普遍过短）" };
     }
   }
 
   // 判定 D: iframe 主导 → 应用页
   const iframes = Array.from(doc.querySelectorAll("iframe"));
-  if (iframes.length >= 1 && longParagraphs.length < 2) {
+  if (iframes.length >= 1 && totalLongBlocks < 2) {
     // 估算 iframe 总面积占视口比例
     const vpArea = window.innerWidth * window.innerHeight;
     let iframeArea = 0;
@@ -338,7 +354,7 @@ function extractSiteName(): string | null {
 }
 
 function sanitizeHtml(html: string): string {
-  return html
+  let cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
@@ -351,6 +367,28 @@ function sanitizeHtml(html: string): string {
     .replace(/ on\w+='[^']*'/gi, "")
     .replace(/ style="[^"]*"/gi, "")
     .replace(/ style='[^']*'/gi, "");
+
+  // 移除非 img 元素的 width/height HTML 属性，防止固定宽高导致容器溢出
+  // img 保留 width/height 以减少加载前的布局抖动 (CLS)，CSS max-width:100% 会覆盖 width
+  try {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = cleaned;
+    tmp.querySelectorAll("[width],[height]").forEach(el => {
+      if (el.tagName.toLowerCase() !== "img") {
+        el.removeAttribute("width");
+        el.removeAttribute("height");
+      }
+    });
+    cleaned = tmp.innerHTML;
+  } catch {
+    // DOM 解析失败时降级为正则清理（可能误删 img 的属性，但不影响功能）
+    cleaned = cleaned
+      .replace(/\s+width="[^"]*"/gi, "")
+      .replace(/\s+width='[^']*'/gi, "")
+      .replace(/\s+height="[^"]*"/gi, "")
+      .replace(/\s+height='[^']*'/gi, "");
+  }
+  return cleaned;
 }
 
 function stripHtml(html: string): string {

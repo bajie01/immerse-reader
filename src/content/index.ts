@@ -107,6 +107,7 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
 
   // ===== Reader CSS (inlined) =====
   const CSS = `/* ImmerseReader reader styles */
+*,*::before,*::after{box-sizing:border-box}
 html[data-ir-theme]{--ir-font-size:18px;--ir-line-height:1.8;--ir-max-width:720px;--ir-toolbar-height:48px}
 html[data-ir-theme="light"]{--ir-bg:#faf9f6;--ir-text:#1a1a1a;--ir-heading:#0a0a0a;--ir-muted:#666;--ir-border:#e0ddd5;--ir-toolbar-bg:rgba(250,249,246,.95);--ir-link:#2563eb;--ir-code-bg:#f1f0ed;--ir-blockquote-border:#c4b998;--ir-blockquote-bg:#f3f0ea}
 html[data-ir-theme="sepia"]{--ir-bg:#f4e8c1;--ir-text:#3b3226;--ir-heading:#2a2218;--ir-muted:#7a6b50;--ir-border:#d4c4a0;--ir-toolbar-bg:rgba(244,232,193,.95);--ir-link:#8b5e3c;--ir-code-bg:#e8dcc0;--ir-blockquote-border:#b8a888;--ir-blockquote-bg:#ede0c0}
@@ -120,12 +121,12 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-toolbar-title{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.85em;color:var(--ir-muted)}
 .ir-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ir-text);font-size:16px;cursor:pointer;transition:background .15s}
 .ir-btn:hover{background:var(--ir-border);border-color:var(--ir-border)}
-.ir-container{max-width:var(--ir-max-width);margin:0 auto;padding:40px 24px 80px}
+.ir-container{max-width:var(--ir-max-width);margin:0 auto;padding:40px 24px 80px;overflow-x:hidden}
 .ir-header{margin-bottom:48px;padding-bottom:24px;border-bottom:1px solid var(--ir-border)}
 .ir-headline{font-size:2em;line-height:1.4;font-weight:700;color:var(--ir-heading);margin:0 0 12px;letter-spacing:-.01em}
 .ir-byline{color:var(--ir-muted);font-size:.9em;margin:0}
 .ir-sitename{color:var(--ir-muted);font-size:.85em;text-transform:uppercase;letter-spacing:.05em;margin:0}
-.ir-article{word-wrap:break-word;text-align:justify;-webkit-hyphens:auto;hyphens:auto;font-variant-east-asian:normal}
+.ir-article{word-wrap:break-word;text-align:justify;-webkit-hyphens:auto;hyphens:auto;font-variant-east-asian:normal;overflow-wrap:break-word}
 .ir-article p{margin:0 0 1.2em;text-indent:2em;hanging-punctuation:allow-end;word-break:break-word}
 .ir-article h1,.ir-article h2,.ir-article h3,.ir-article h4{color:var(--ir-heading);line-height:1.35;margin:1.8em 0 .6em;font-weight:600;text-indent:0}
 .ir-article h1{font-size:1.6em}
@@ -137,11 +138,13 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-article pre{margin:1.2em 0;padding:16px 20px;background:var(--ir-code-bg);border-radius:8px;font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;overflow-x:auto;line-height:1.6}
 .ir-article code{font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;background:var(--ir-code-bg);padding:2px 6px;border-radius:4px}
 .ir-article pre code{background:none;padding:0}
-.ir-article img{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px}
+.ir-article img,.ir-article video,.ir-article canvas,.ir-article embed,.ir-article object,.ir-article svg,.ir-article iframe{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px}
+.ir-article picture{display:block;margin:1.5em auto;text-align:center}
+.ir-article picture img{margin:0}
 .ir-article ul,.ir-article ol{margin:1em 0;padding-left:1.5em}
 .ir-article li{margin-bottom:.4em}
 .ir-article hr{border:none;border-top:1px solid var(--ir-border);margin:2em 0}
-.ir-article table{width:100%;border-collapse:collapse;margin:1.5em 0;font-size:.9em}
+.ir-article table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1.5em 0;font-size:.9em;-webkit-overflow-scrolling:touch}
 .ir-article th,.ir-article td{padding:10px 14px;border:1px solid var(--ir-border);text-align:left}
 .ir-article th{background:var(--ir-code-bg);font-weight:600;color:var(--ir-heading)}
 .ir-progress-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:var(--ir-border);pointer-events:none}
