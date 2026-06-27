@@ -20,6 +20,7 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
   let savedHead = "";
   let savedBody = "";
   let savedHtmlAttrs: { name: string; value: string }[] = [];
+  let savedFootnotes: Map<string, string> | null = null;
 
   // Cache reader preferences (synced from storage at init time)
   let prefs: any = { theme: "light", fontSize: 18, fontFamily: "serif", margin: 720, lineHeight: 1.8 };
@@ -126,8 +127,8 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-headline{font-size:2em;line-height:1.4;font-weight:700;color:var(--ir-heading);margin:0 0 12px;letter-spacing:-.01em}
 .ir-byline{color:var(--ir-muted);font-size:.9em;margin:0}
 .ir-sitename{color:var(--ir-muted);font-size:.85em;text-transform:uppercase;letter-spacing:.05em;margin:0}
-.ir-article{word-wrap:break-word;text-align:justify;-webkit-hyphens:auto;hyphens:auto;font-variant-east-asian:normal;overflow-wrap:break-word}
-.ir-article p{margin:0 0 1.2em;text-indent:2em;hanging-punctuation:allow-end last;word-break:keep-all;line-break:strict;text-spacing:trim-start trim-end;overflow-wrap:break-word}
+.ir-article{word-wrap:break-word;text-align:left;-webkit-hyphens:auto;hyphens:auto;font-variant-east-asian:normal;overflow-wrap:break-word;font-variant-east-asian:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;line-break:loose;}
+.ir-article p{margin:0 0 1.2em;text-indent:2em;hanging-punctuation:allow-end last;word-break:normal;line-break:auto;text-spacing:trim-start trim-end;overflow-wrap:break-word;}
 .ir-article h1,.ir-article h2,.ir-article h3,.ir-article h4{color:var(--ir-heading);line-height:1.35;margin:1.8em 0 .6em;font-weight:600;text-indent:0}
 .ir-article h1{font-size:1.6em}
 .ir-article h2{font-size:1.4em}
@@ -170,6 +171,8 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-lb{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);align-items:center;justify-content:center;cursor:zoom-out}
 .ir-lb.open{display:flex}
 .ir-lb img{max-width:92vw;max-height:92vh;object-fit:contain;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5);cursor:default}
+.ir-fn{display:none;position:absolute;z-index:500;max-width:300px;background:var(--ir-bg);border:1px solid var(--ir-border);border-radius:8px;padding:10px 14px;font-size:.85em;line-height:1.5;color:var(--ir-text);box-shadow:0 4px 16px rgba(0,0,0,.15);text-align:left;text-indent:0;cursor:default}
+.ir-fn.open{display:block}
 @media print{.ir-toolbar{display:none}.ir-container{padding:0;max-width:none}}
 @media(max-width:768px){.ir-container{padding:24px 16px 60px}.ir-headline{font-size:1.5em}}
 @media(max-width:480px){.ir-container{padding:16px 12px 40px}.ir-headline{font-size:1.3em}}`;
@@ -190,6 +193,25 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
     link.media = "print";         // non-render-blocking
     link.onload = () => { link.media = "all"; };
     document.head.appendChild(link);
+  }
+
+  // 收集页面中的脚注定义（id 含 fn/footnote/note/ref/cite + 数字）
+  function collectFootnotes(doc: Document): Map<string, string> {
+    const defs = new Map<string, string>();
+    try {
+      doc.querySelectorAll("[id]").forEach(el => {
+        const id = el.id;
+        if (!id) return;
+        const lower = id.toLowerCase();
+        if (/\b(fn|footnote|note|ref|cite)\b.*\d/.test(lower) && lower.length < 40) {
+          const text = (el.textContent || "").trim();
+          if (text.length > 0) defs.set("#" + id, text);
+        }
+      });
+    } catch (err) {
+      console.warn("[ImmerseReader] 脚注收集失败", err);
+    }
+    return defs;
   }
 
 function buildReaderView(content: ExtractedContent) {
@@ -443,6 +465,94 @@ function buildReaderView(content: ExtractedContent) {
       (window as any).__ir_deactivate = origDeactivate;
     })();
 
+    // ==== Footnote hover tooltip ====
+    (function initFootnotes() {
+      const article = document.querySelector(".ir-article");
+      if (!article) return;
+
+      // 优先用提前从原页面收集的脚注定义（Readability 可能过滤底部参考文献）
+      const defs = savedFootnotes || new Map<string, string>();
+
+      // 如果原页面没收集到，尝试从阅读视图中收集（fallback）
+      if (defs.size === 0) {
+        article.querySelectorAll("[id]").forEach(el => {
+          const id = el.id;
+          if (!id) return;
+          const lower = id.toLowerCase();
+          if (/\b(fn|footnote|note|ref|cite)\b.*\d/.test(lower) && lower.length < 40) {
+            const text = (el.textContent || "").trim();
+            if (text.length > 0) defs.set("#" + id, text);
+          }
+        });
+      }
+
+      if (defs.size === 0) return;
+
+      // 创建气泡 DOM（懒创建）
+      let tooltip: HTMLElement | null = null;
+      function getTooltip(): HTMLElement {
+        if (!tooltip) {
+          tooltip = document.createElement("div");
+          tooltip.className = "ir-fn";
+          document.body.appendChild(tooltip);
+        }
+        return tooltip;
+      }
+
+      function showFootnote(ref: string) {
+        const content = defs.get(ref);
+        if (!content) return;
+        const el = document.querySelector(ref);
+        if (!el) return;
+        const tt = getTooltip();
+        tt.textContent = content;
+        tt.classList.add("open");
+        // 定位：基于引用元素
+        const rect = el.getBoundingClientRect();
+        const articleRect = article.getBoundingClientRect();
+        const scrollTop = window.scrollY;
+        let top = scrollTop + rect.bottom + 6;
+        let left = scrollTop + rect.left;
+        // 右侧溢出检测
+        if (left + 300 > articleRect.right + window.scrollX) {
+          left = scrollTop + rect.right - 310;
+        }
+        tt.style.top = top + "px";
+        tt.style.left = left + "px";
+      }
+
+      function hideFootnote() {
+        tooltip?.classList.remove("open");
+      }
+
+      // 绑定所有 sup a[href^="#"] 点击
+      article.querySelectorAll("sup a[href^='#']").forEach(a => {
+        const href = (a as HTMLAnchorElement).getAttribute("href") || "";
+        const hash = href.startsWith("#") ? href : "#" + href.split("#").pop();
+        if (defs.has(hash)) {
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (tooltip?.classList.contains("open")) {
+              hideFootnote();
+            } else {
+              showFootnote(hash);
+            }
+          });
+        }
+      });
+
+      // 点击气泡外或 Esc 关闭
+      document.addEventListener("click", (e) => {
+        const target = e.target as Node;
+        if (tooltip?.contains(target)) return;
+        if (tooltip?.classList.contains("open")) hideFootnote();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hideFootnote();
+      });
+    })();
+
     // ==== Build TOC sidebar ====
     const tocList = document.getElementById("ir-toc-list");
     const tocSidebar = document.getElementById("ir-toc-sidebar");
@@ -628,6 +738,9 @@ function buildReaderView(content: ExtractedContent) {
       const a = document.documentElement.attributes[i];
       savedHtmlAttrs.push({ name: a.name, value: a.value });
     }
+
+    // 提前收集原页面脚注定义（Readability 可能会过滤底部参考文献）
+    savedFootnotes = collectFootnotes(document);
 
     const content = extractContent();
 
