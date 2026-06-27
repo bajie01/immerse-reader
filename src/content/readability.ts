@@ -139,10 +139,54 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
 
 // ====================================================================
 // Math protection: preserve KaTeX/MathJax/MathML through Readability
+// 百度百科公式预处理：将行内公式 section 展平为裸 img，避免 Readability 拆散行内结构
+function flattenBaiduFormulaSections(doc: Document): void {
+  // cloneNode 复制的 Document 的 location.hostname 可能为空，改用 defaultView 获取
+  const win = doc.defaultView;
+  const host = win?.location?.hostname || document.location?.hostname || "";
+  if (!host.includes("baike.baidu.com")) return;
+
+  // 查找所有含 img 的 section（百度百科公式容器）
+  const sections = doc.querySelectorAll("section");
+  for (const section of Array.from(sections)) {
+    const img = section.querySelector("img");
+    if (!img) continue;
+
+    // 判断是否为行内公式：内部 div 的 display 值为 inline
+    const innerDiv = section.querySelector("div");
+    const isInline = innerDiv && innerDiv.style && innerDiv.style.display === "inline";
+
+    // 创建新的 img 替代 section
+    const newImg = doc.createElement("img");
+    // 复制 img 的所有属性
+    for (const attr of Array.from(img.attributes)) {
+      newImg.setAttribute(attr.name, attr.value);
+    }
+    // 标记公式类型
+    newImg.setAttribute("data-ir-formula", isInline ? "inline" : "block");
+
+    // 保留 vertical-align 等关键样式到 style 属性
+    if (img.style.verticalAlign) {
+      newImg.style.verticalAlign = img.style.verticalAlign;
+    }
+    if (img.style.width) {
+      newImg.style.width = img.style.width;
+    }
+    if (img.style.height) {
+      newImg.style.height = img.style.height;
+    }
+
+    // 替换 section 为新 img
+    section.parentNode?.replaceChild(newImg, section);
+  }
+}
+
 export function extractContent(): ExtractedContent | null {
   // 策略 1: Readability 标准提取
   const clone = document.cloneNode(true) as Document;
- const article = new Readability(clone).parse();
+  // 预处理：展平百度百科公式 section，避免 Readability 拆散行内结构
+  flattenBaiduFormulaSections(clone);
+  const article = new Readability(clone).parse();
  if (article && article.content && article.length > 100) {
    const r = makeResult(article);
    // 质量门：纯文本不足 300 字符的不算有效提取

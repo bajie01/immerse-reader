@@ -142,6 +142,9 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-article img,.ir-article video,.ir-article canvas,.ir-article embed,.ir-article object,.ir-article svg,.ir-article iframe{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px;cursor:zoom-in}
 .ir-article picture{display:block;margin:1.5em auto;text-align:center}
 .ir-article picture img{margin:0}
+/* 百度百科公式图：行内公式保持行内显示，块级公式居中独占一行 */
+.ir-article img[data-ir-formula="inline"]{display:inline-block;vertical-align:middle;margin:0 .25em}
+.ir-article img[data-ir-formula="block"]{display:block;margin:0 auto}
 .ir-article ul,.ir-article ol{margin:1em 0;padding-left:1.5em}
 .ir-article li{margin-bottom:.4em}
 .ir-article hr{border:none;border-top:1px solid var(--ir-border);margin:2em 0}
