@@ -455,13 +455,30 @@ function buildReaderView(content: ExtractedContent) {
       }
       document.addEventListener("keydown", onKeyDown);
 
-      // Bind click to all article images
+      // 禁用图片的 <a> 包裹点击行为，阻止原网站跳转逻辑
       document.querySelectorAll(".ir-article img").forEach((img) => {
-        img.addEventListener("click", () => {
+        const parentAnchor = img.closest("a");
+        if (parentAnchor) {
+          parentAnchor.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          });
+        }
+        // 图片点击走 lightbox
+        img.addEventListener("click", (e) => {
+          e.stopPropagation();
           const src = (img as HTMLImageElement).currentSrc || (img as HTMLImageElement).src;
           if (src) openLightbox(src);
         });
       });
+
+      // 点击 lightbox 中的图片也可以关闭
+      if (lbImg) {
+        lbImg.addEventListener("click", (e) => {
+          e.stopPropagation();
+          closeLightbox();
+        });
+      }
 
       // Cleanup on deactivate
       const origDeactivate = doDeactivate;
