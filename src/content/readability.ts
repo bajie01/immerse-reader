@@ -181,11 +181,61 @@ function flattenBaiduFormulaSections(doc: Document): void {
   }
 }
 
+// MediaWiki 数学公式预处理：提取 span 内的 fallback img，避免 Readability 因 math 标签拆散行内结构
+// 适用站点：wikipedia.org / wikimedia.org / wikiwand.com / wiktionary.org / wikidata.org 等
+function flattenMediaWikiMathSections(doc: Document): void {
+  const win = doc.defaultView;
+  const host = win?.location?.hostname || document.location?.hostname || "";
+  const mediaWikiHosts = [
+    "wikipedia.org",
+    "wikimedia.org",
+    "wikiwand.com",
+    "wiktionary.org",
+    "wikidata.org",
+    "wikisource.org",
+    "wikibooks.org",
+    "wikiquote.org",
+    "wikiversity.org",
+    "wikivoyage.org",
+    "wikinews.org",
+  ];
+  if (!mediaWikiHosts.some(h => host.includes(h))) return;
+
+  // 行内和块级公式的 img class 不同
+  const mathImgs = doc.querySelectorAll(
+    "img.mwe-math-fallback-image-inline, img.mwe-math-fallback-image-display"
+  );
+  for (const img of Array.from(mathImgs)) {
+    // 找父容器 span.mwe-math-element
+    const parentSpan = img.closest("span.mwe-math-element");
+    if (!parentSpan) continue;
+
+    const isInline = img.classList.contains("mwe-math-fallback-image-inline");
+
+    // 创建新的 img
+    const newImg = doc.createElement("img");
+    for (const attr of Array.from(img.attributes)) {
+      newImg.setAttribute(attr.name, attr.value);
+    }
+    newImg.setAttribute("data-ir-formula", isInline ? "inline" : "block");
+
+    // 继承样式
+    if (img.style.verticalAlign) newImg.style.verticalAlign = img.style.verticalAlign;
+    if (img.style.width) newImg.style.width = img.style.width;
+    if (img.style.height) newImg.style.height = img.style.height;
+
+    // 替换整个 span 为新 img
+    parentSpan.parentNode?.replaceChild(newImg, parentSpan);
+  }
+}
+
 export function extractContent(): ExtractedContent | null {
   // 策略 1: Readability 标准提取
   const clone = document.cloneNode(true) as Document;
   // 预处理：展平百度百科公式 section，避免 Readability 拆散行内结构
   flattenBaiduFormulaSections(clone);
+  // 预处理：展平 MediaWiki 数学公式 span，避免 Readability 因 math 标签拆散行内结构
+  flattenMediaWikiMathSections(clone);
   const article = new Readability(clone).parse();
  if (article && article.content && article.length > 100) {
    const r = makeResult(article);
