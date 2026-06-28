@@ -1,5 +1,5 @@
 // ImmerseReader — Content Script
-import { extractContent, esc, shouldBlockByUrl, shouldBlockByDOM, type ExtractedContent } from "./readability";
+import { extractContent, esc, shouldBlockByUrl, shouldBlockByDOM, expandMdnCodeExamples, type ExtractedContent } from "./readability";
 
 interface ActivateResult {
   active: boolean;
@@ -744,6 +744,10 @@ function buildReaderView(content: ExtractedContent) {
 
     // 提前收集原页面脚注定义（Readability 可能会过滤底部参考文献）
     savedFootnotes = collectFootnotes(document);
+
+    // MDN 专属：展开 mdn-code-example 的 Shadow DOM，替换为 <pre><code>
+    // 必须在 extractContent 调用前完成（doActivate 早期），避免时序问题
+    expandMdnCodeExamples(document);
 
     const content = extractContent();
 

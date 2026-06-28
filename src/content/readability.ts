@@ -138,7 +138,40 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
 // 统一提取管道 —— 纯通用，不依赖任何 DOM 结构假设
 
 // ====================================================================
-// Math protection: preserve KaTeX/MathJax/MathML through Readability
+// 站点专属预处理 —— 在 Readability 提取前修复特定站点的 DOM 结构问题
+// ====================================================================
+
+// MDN 代码示例预处理：展开 <mdn-code-example> 自定义元素的 Shadow DOM，提取其中的 <pre><code>
+// 原因：MDN 用 Web Component 封装代码块，Shadow DOM 内容对 Readability 不可见
+// 注意：必须在 extractContent 调用前调用（doActivate 早期），不能在 extractContent 内部直接调用
+export function expandMdnCodeExamples(doc: Document): void {
+  try {
+    const host = doc.location?.hostname || "";
+    if (!host.includes("developer.mozilla.org")) return;
+
+    // 使用 outerHTML 直接替换，避免 replaceChild 带来的 parentNode 引用问题
+    const codeExamples = doc.querySelectorAll("mdn-code-example");
+    for (let i = codeExamples.length - 1; i >= 0; i--) {
+      try {
+        const el = codeExamples[i];
+        const shadow = (el as any).shadowRoot as ShadowRoot | null;
+        if (!shadow) continue;
+
+        const pre = shadow.querySelector("pre");
+        if (!pre) continue;
+
+        // 只提取 <pre><code>...</code></pre>，去除所有装饰元素
+        const codeEl = pre.querySelector("code");
+        const codeInner = codeEl ? codeEl.innerHTML : pre.innerHTML;
+
+        // 用纯 <pre><code> 结构替换整个 mdn-code-example
+        const replacementHTML = `<pre><code>${codeInner}</code></pre>`;
+        el.outerHTML = replacementHTML;
+      } catch {}
+    }
+  } catch {}
+}
+
 // 百度百科公式预处理：将行内公式 section 展平为裸 img，避免 Readability 拆散行内结构
 function flattenBaiduFormulaSections(doc: Document): void {
   // cloneNode 复制的 Document 的 location.hostname 可能为空，改用 defaultView 获取
@@ -237,9 +270,9 @@ export function extractContent(): ExtractedContent | null {
   // 预处理：展平 MediaWiki 数学公式 span，避免 Readability 因 math 标签拆散行内结构
   flattenMediaWikiMathSections(clone);
   const article = new Readability(clone).parse();
- if (article && article.content && article.length > 100) {
-   const r = makeResult(article);
-   // 质量门：纯文本不足 300 字符的不算有效提取
+  if (article && article.content && article.length > 100) {
+    const r = makeResult(article);
+    // 质量门：纯文本不足 300 字符的不算有效提取
     // （防止 MSN 这类页面返回 165 字元数据碎片）
     if (r.textContent.length >= 300) return r;
   }
@@ -256,11 +289,11 @@ export function extractContent(): ExtractedContent | null {
   // 处理 Web Components / 非标准结构
   expandShadowDOMs();
   const clone2 = document.cloneNode(true) as Document;
- const article2 = new Readability(clone2).parse();
- if (article2 && article2.content && article2.length > 200) {
+  const article2 = new Readability(clone2).parse();
+  if (article2 && article2.content && article2.length > 200) {
     return makeResult(article2);
- }
- const density = densityExtract();
+  }
+  const density = densityExtract();
   if (density) return density;
 
   // 策略 5: JSON-LD 提取 —— 不依赖 DOM，直接从结构化数据取正文
