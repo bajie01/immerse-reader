@@ -141,45 +141,86 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
 // 站点专属预处理 —— 在 Readability 提取前修复特定站点的 DOM 结构问题
 // ====================================================================
 
-// MDN 代码示例预处理：展开 <mdn-code-example> 自定义元素的 Shadow DOM，提取其中的 <pre><code>
-// 原因：MDN 用 Web Component 封装代码块，Shadow DOM 内容对 Readability 不可见
-// 注意：必须在 extractContent 调用前调用（doActivate 早期），不能在 extractContent 内部直接调用
-export function expandMdnCodeExamples(doc: Document): void {
-  try {
-    const host = doc.location?.hostname || "";
-    if (!host.includes("developer.mozilla.org")) return;
+export type AdapterPhase = "BEFORE_CLONE" | "AFTER_CLONE";
 
-    // 使用 outerHTML 直接替换，避免 replaceChild 带来的 parentNode 引用问题
-    const codeExamples = doc.querySelectorAll("mdn-code-example");
-    for (let i = codeExamples.length - 1; i >= 0; i--) {
-      try {
-        const el = codeExamples[i];
-        const shadow = (el as any).shadowRoot as ShadowRoot | null;
-        if (!shadow) continue;
+interface SiteAdapter {
+  name: string;
+  match: (host: string) => boolean;
+  phase: AdapterPhase;
+  run: (doc: Document) => void;
+}
 
-        const pre = shadow.querySelector("pre");
-        if (!pre) continue;
+const siteAdapters: SiteAdapter[] = [
+  {
+    name: "mdn-shadow-dom",
+    match: (h) => h.includes("developer.mozilla.org"),
+    phase: "BEFORE_CLONE",
+    run: expandMdnCodeExamples,
+  },
+  {
+    name: "baidu-baike-formula",
+    match: (h) => h.includes("baike.baidu.com"),
+    phase: "AFTER_CLONE",
+    run: flattenBaiduFormulaSections,
+  },
+  {
+    name: "mediawiki-math",
+    match: (h) => MEDIAWIKI_HOSTS.some((domain) => h.includes(domain)),
+    phase: "AFTER_CLONE",
+    run: flattenMediaWikiMathSections,
+  },
+];
 
-        // 只提取 <pre><code>...</code></pre>，去除所有装饰元素
-        const codeEl = pre.querySelector("code");
-        const codeInner = codeEl ? codeEl.innerHTML : pre.innerHTML;
+const MEDIAWIKI_HOSTS = [
+  "wikipedia.org",
+  "wikimedia.org",
+  "wikiwand.com",
+  "wiktionary.org",
+  "wikidata.org",
+  "wikisource.org",
+  "wikibooks.org",
+  "wikiquote.org",
+  "wikiversity.org",
+  "wikivoyage.org",
+  "wikinews.org",
+];
 
-        // 用纯 <pre><code> 结构替换整个 mdn-code-example
-        const replacementHTML = `<pre><code>${codeInner}</code></pre>`;
-        el.outerHTML = replacementHTML;
-      } catch {}
+export function runSiteAdapters(doc: Document, phase: AdapterPhase): void {
+  const host = doc.defaultView?.location?.hostname || doc.location?.hostname || document.location?.hostname || "";
+  for (const adapter of siteAdapters) {
+    if (adapter.phase !== phase) continue;
+    if (!adapter.match(host)) continue;
+    try {
+      adapter.run(doc);
+    } catch (e) {
+      console.warn(`[ImmerseReader] site adapter ${adapter.name} failed:`, e);
     }
-  } catch {}
+  }
+}
+
+// MDN 代码示例预处理：展开 <mdn-code-example> 自定义元素的 Shadow DOM，提取其中的 <pre><code>
+function expandMdnCodeExamples(doc: Document): void {
+  const codeExamples = doc.querySelectorAll("mdn-code-example");
+  for (let i = codeExamples.length - 1; i >= 0; i--) {
+    try {
+      const el = codeExamples[i];
+      const shadow = (el as any).shadowRoot as ShadowRoot | null;
+      if (!shadow) continue;
+
+      const pre = shadow.querySelector("pre");
+      if (!pre) continue;
+
+      const codeEl = pre.querySelector("code");
+      const codeInner = codeEl ? codeEl.innerHTML : pre.innerHTML;
+
+      const replacementHTML = `<pre><code>${codeInner}</code></pre>`;
+      el.outerHTML = replacementHTML;
+    } catch {}
+  }
 }
 
 // 百度百科公式预处理：将行内公式 section 展平为裸 img，避免 Readability 拆散行内结构
 function flattenBaiduFormulaSections(doc: Document): void {
-  // cloneNode 复制的 Document 的 location.hostname 可能为空，改用 defaultView 获取
-  const win = doc.defaultView;
-  const host = win?.location?.hostname || document.location?.hostname || "";
-  if (!host.includes("baike.baidu.com")) return;
-
-  // 查找所有含 img 的 section（百度百科公式容器）
   const sections = doc.querySelectorAll("section");
   for (const section of Array.from(sections)) {
     const img = section.querySelector("img");
@@ -217,47 +258,25 @@ function flattenBaiduFormulaSections(doc: Document): void {
 // MediaWiki 数学公式预处理：提取 span 内的 fallback img，避免 Readability 因 math 标签拆散行内结构
 // 适用站点：wikipedia.org / wikimedia.org / wikiwand.com / wiktionary.org / wikidata.org 等
 function flattenMediaWikiMathSections(doc: Document): void {
-  const win = doc.defaultView;
-  const host = win?.location?.hostname || document.location?.hostname || "";
-  const mediaWikiHosts = [
-    "wikipedia.org",
-    "wikimedia.org",
-    "wikiwand.com",
-    "wiktionary.org",
-    "wikidata.org",
-    "wikisource.org",
-    "wikibooks.org",
-    "wikiquote.org",
-    "wikiversity.org",
-    "wikivoyage.org",
-    "wikinews.org",
-  ];
-  if (!mediaWikiHosts.some(h => host.includes(h))) return;
-
-  // 行内和块级公式的 img class 不同
   const mathImgs = doc.querySelectorAll(
     "img.mwe-math-fallback-image-inline, img.mwe-math-fallback-image-display"
   );
   for (const img of Array.from(mathImgs)) {
-    // 找父容器 span.mwe-math-element
     const parentSpan = img.closest("span.mwe-math-element");
     if (!parentSpan) continue;
 
     const isInline = img.classList.contains("mwe-math-fallback-image-inline");
 
-    // 创建新的 img
     const newImg = doc.createElement("img");
     for (const attr of Array.from(img.attributes)) {
       newImg.setAttribute(attr.name, attr.value);
     }
     newImg.setAttribute("data-ir-formula", isInline ? "inline" : "block");
 
-    // 继承样式
     if (img.style.verticalAlign) newImg.style.verticalAlign = img.style.verticalAlign;
     if (img.style.width) newImg.style.width = img.style.width;
     if (img.style.height) newImg.style.height = img.style.height;
 
-    // 替换整个 span 为新 img
     parentSpan.parentNode?.replaceChild(newImg, parentSpan);
   }
 }
@@ -265,10 +284,8 @@ function flattenMediaWikiMathSections(doc: Document): void {
 export function extractContent(): ExtractedContent | null {
   // 策略 1: Readability 标准提取
   const clone = document.cloneNode(true) as Document;
-  // 预处理：展平百度百科公式 section，避免 Readability 拆散行内结构
-  flattenBaiduFormulaSections(clone);
-  // 预处理：展平 MediaWiki 数学公式 span，避免 Readability 因 math 标签拆散行内结构
-  flattenMediaWikiMathSections(clone);
+  // 站点专属预处理（clone 后阶段）
+  runSiteAdapters(clone, "AFTER_CLONE");
   const article = new Readability(clone).parse();
   if (article && article.content && article.length > 100) {
     const r = makeResult(article);
