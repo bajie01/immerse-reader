@@ -71,7 +71,8 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
   // 判定 A: 链接文字占比过高 → 导航/列表页
   const links = Array.from(doc.querySelectorAll("a"));
   let linkTextLen = 0;
-  for (const a of links) {
+  for (let i = 0; i < links.length; i++) {
+    const a = links[i];
     linkTextLen += (a.textContent || "").replace(/\s+/g, " ").trim().length;
   }
   if (bodyText.length > 0 && linkTextLen / bodyText.length > 0.5) {
@@ -122,7 +123,8 @@ export function shouldBlockByDOM(doc: Document): BlockReason | null {
     // 估算 iframe 总面积占视口比例
     const vpArea = window.innerWidth * window.innerHeight;
     let iframeArea = 0;
-    for (const f of iframes) {
+    for (let i = 0; i < iframes.length; i++) {
+      const f = iframes[i];
       const r = f.getBoundingClientRect();
       iframeArea += r.width * r.height;
     }
@@ -168,6 +170,12 @@ const siteAdapters: SiteAdapter[] = [
     match: (h) => MEDIAWIKI_HOSTS.some((domain) => h.includes(domain)),
     phase: "AFTER_CLONE",
     run: flattenMediaWikiMathSections,
+  },
+  {
+    name: "zhihu-math",
+    match: (h) => h.includes("zhihu.com"),
+    phase: "AFTER_CLONE",
+    run: fixZhihuMath,
   },
 ];
 
@@ -278,6 +286,30 @@ function flattenMediaWikiMathSections(doc: Document): void {
     if (img.style.height) newImg.style.height = img.style.height;
 
     parentSpan.parentNode?.replaceChild(newImg, parentSpan);
+  }
+}
+
+function fixZhihuMath(doc: Document): void {
+  const containers = doc.querySelectorAll("span[data-tex]");
+  for (let i = 0; i < containers.length; i++) {
+    const container = containers[i];
+    container.classList.add("ir-tex-formula");
+    let tex = container.getAttribute("data-tex") || (container.textContent || "").trim();
+
+    if (tex.includes("\\begin{align}")) {
+      tex = tex
+        .replace(/\\begin{align}/g, "\\begin{aligned}")
+        .replace(/\\end{align}/g, "\\end{aligned}");
+      tex = tex.replace(/\\\\s*$/, "");
+    }
+
+    container.setAttribute("data-tex", tex);
+    container.textContent = tex;
+
+    const eeimg = container.getAttribute("data-eeimg");
+    if (eeimg === "2") {
+      container.setAttribute("data-tex-display", "block");
+    }
   }
 }
 
@@ -625,8 +657,9 @@ function stripHtml(html: string): string {
 
 // ===== 兜底提取：JSON-LD 结构化数据 =====
 function jsonldExtract(): ExtractedContent | null {
-  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-  for (const script of scripts) {
+  const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+  for (let i = 0; i < scripts.length; i++) {
+    const script = scripts[i];
     try {
       const raw = JSON.parse(script.textContent || "{}");
       const items = Array.isArray(raw) ? raw : [raw];

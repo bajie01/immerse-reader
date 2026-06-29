@@ -1,5 +1,7 @@
 // ImmerseReader — Content Script
 import { extractContent, esc, shouldBlockByUrl, shouldBlockByDOM, runSiteAdapters, type ExtractedContent } from "./readability";
+import katex from "katex";
+import katexCss from "katex/dist/katex.min.css?raw";
 
 interface ActivateResult {
   active: boolean;
@@ -145,6 +147,9 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 /* 百度百科公式图：行内公式保持行内显示，块级公式居中独占一行 */
 .ir-article img[data-ir-formula="inline"]{display:inline-block;vertical-align:middle;margin:0 .25em}
 .ir-article img[data-ir-formula="block"]{display:block;margin:0 auto}
+/* KaTeX 渲染的数学公式：行内公式保持行内，块级公式独占一行 */
+.ir-article .ir-tex-formula{display:inline!important;vertical-align:middle}
+.ir-article .ir-tex-formula[data-tex-display="block"]{display:block!important;text-align:center;margin:1em 0}
 .ir-article ul,.ir-article ol{margin:1em 0;padding-left:1.5em}
 .ir-article li{margin-bottom:.4em}
 .ir-article hr{border:none;border-top:1px solid var(--ir-border);margin:2em 0}
@@ -253,39 +258,14 @@ function buildReaderView(content: ExtractedContent) {
       '<title>' + t + ' — ImmerseReader</title>';
     head.appendChild(style);
 
-    // Preserve math formula CSS from original page (KaTeX, MathJax, etc.)
-    if (savedHead) {
-      const ms = savedHead.match(/<style[^>]*>[\s\S]*?(?:\.katex|\.MathJax)[\s\S]*?<\/style>/gi);
-      if (ms) ms.forEach(function(css) {
-        var s = document.createElement("style");
-        s.textContent = css.replace(/<\/?style[^>]*>/g, "");
-        head.appendChild(s);
-      });
-      var lk = savedHead.match(/<link[^>]*href="[^"]*(?:katex|mathjax)[^"]*"[^>]*>/gi);
-      if (lk) lk.forEach(function(h) {
-        var hr = h.match(/href="([^"]+)"/);
-        if (hr) {
-          var l = document.createElement("link");
-          l.rel = "stylesheet";
-          l.href = hr[1];
-          head.appendChild(l);
-        }
-      });
-   }
-
-    // Also inject MathJax script from original page (renders raw LaTeX)
-    if (savedHead) {
-      var mjScripts = savedHead.match(/<script[^>]*src="[^"]*mathjax[^"]*"[^>]*>[\s\S]*?<\/script>/gi);
-      if (mjScripts) mjScripts.forEach(function(h) {
-        var srcMatch = h.match(/src="([^"]+)"/);
-        if (srcMatch) {
-          var s = document.createElement("script");
-          s.src = srcMatch[1];
-          s.async = true;
-          head.appendChild(s);
-        }
-      });
-    }
+    // 注入 KaTeX 样式，替换字体路径为扩展内本地路径
+    const katexStyle = document.createElement("style");
+    const fontBase = chrome.runtime.getURL("fonts/");
+    katexStyle.textContent = katexCss.replace(
+      /url\(fonts\//g,
+      "url(" + fontBase
+    );
+    head.appendChild(katexStyle);
 
     const body = document.createElement("body");
     body.innerHTML =
@@ -626,19 +606,36 @@ function buildReaderView(content: ExtractedContent) {
     }
 
     active = true;
-    // Trigger math rendering (MathJax/KaTeX) — runs in page context
-    var _m = document.createElement("script");
-    _m.textContent = "!function(){var e=0,t=setInterval(function(){if(++e>20)return clearInterval(t);var n=!1;window.MathJax&&(MathJax.typesetPromise?(MathJax.typesetPromise(),n=!0):MathJax.Hub&&(MathJax.Hub.Queue([\"Typeset\",MathJax.Hub]),n=!0)),window.renderMathInElement&&(renderMathInElement(document.body),n=!0),n&&clearInterval(t)},600)}();";
-    document.body.appendChild(_m);
-    // KaTeX manual render for Zhihu-style dynamic math
-    var _k = document.createElement("script");
-    _k.textContent = "!function(){var e=0,t=setInterval(function(){if(++e>20||!window.katex)return clearInterval(t);document.querySelectorAll(\".zh-math\").forEach(function(r){var n=(r.textContent||\"\").slice(2,-2);if(n){var h=katex.renderToString(n,{throwOnError:!1});var s=document.createElement(\"span\");s.innerHTML=h;if(r.parentNode)r.parentNode.replaceChild(s,r)}});clearInterval(t)},600)}();"
 
-    document.body.appendChild(_k);
-    // Hide .zh-math containers via CSS (display:contents makes container vanish but children stay)
-    var _kcss = document.createElement("style");
-    _kcss.textContent = ".zh-math{display:contents!important;background:transparent!important;border:none!important;padding:0!important;margin:0!important;font:inherit!important;color:inherit!important}";
-    document.head.appendChild(_kcss);
+    // 使用 KaTeX 同步渲染所有数学公式
+    try {
+      const mathEls = document.querySelectorAll("[data-tex]");
+      for (let i = 0; i < mathEls.length; i++) {
+        const el = mathEls[i];
+        const tex = el.getAttribute("data-tex") || (el.textContent || "").trim();
+        const isBlock = el.getAttribute("data-tex-display") === "block";
+        if (tex) {
+          try {
+            const html = katex.renderToString(tex, {
+              throwOnError: false,
+              displayMode: isBlock,
+              strict: "ignore",
+            });
+            el.innerHTML = html;
+            if (isBlock) {
+              (el as HTMLElement).style.display = "block";
+              (el as HTMLElement).style.textAlign = "center";
+              (el as HTMLElement).style.margin = "1em 0";
+            }
+          } catch (err) {
+            console.warn("[ImmerseReader] KaTeX render failed:", err);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[ImmerseReader] KaTeX rendering failed:", err);
+    }
+
     chrome.storage.local.set({ irActive: true });
   }
 
