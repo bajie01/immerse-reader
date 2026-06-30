@@ -41,61 +41,7 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
     if (p.irCustomLink) (prefs as any).customLink = p.irCustomLink as string;
   });
 
-  // ==================== 知乎问答页面检测（调试用，纯日志，不影响功能）====================
-  (function debugZhihuQuestion() {
-    try {
-      const url = location.href;
-      if (!url.includes("zhihu.com/question")) return;
-
-      console.log("[ImmerseReader][Debug] Zhihu question page detected, URL:", url);
-
-      // 检测问题标题
-      const qTitle = document.querySelector(".QuestionHeader-title");
-      console.log("[ImmerseReader][Debug] QuestionHeader-title:", qTitle ? qTitle.textContent?.trim().slice(0, 50) : "not found");
-
-      // 检测推荐回答（在 .Card.AnswerCard 内）
-      const answerCards = document.querySelectorAll(".Card.AnswerCard .ContentItem.AnswerItem");
-      console.log("[ImmerseReader][Debug] .Card.AnswerCard .AnswerItem count:", answerCards.length);
-
-      // 检测 List-item 回答
-      const listItems = document.querySelectorAll(".List-item .ContentItem.AnswerItem");
-      console.log("[ImmerseReader][Debug] .List-item .AnswerItem count:", listItems.length);
-
-      // 检测所有 AnswerItem
-      const allAnswers = document.querySelectorAll(".ContentItem.AnswerItem");
-      console.log("[ImmerseReader][Debug] All .AnswerItem count:", allAnswers.length);
-
-      // 检测 RichContent-inner
-      const richContents = document.querySelectorAll(".RichContent-inner");
-      console.log("[ImmerseReader][Debug] .RichContent-inner count:", richContents.length);
-
-      // 检测展开按钮
-      const expandBtns = document.querySelectorAll(".ContentItem-expandButton");
-      console.log("[ImmerseReader][Debug] .ContentItem-expandButton count:", expandBtns.length);
-
-      // 打印每个回答的父级结构（前 3 个）
-      for (let i = 0; i < Math.min(allAnswers.length, 3); i++) {
-        const item = allAnswers[i];
-        const parentClasses: string[] = [];
-        let el: Element | null = item;
-        for (let j = 0; j < 5 && el; j++) {
-          if (el.className && typeof el.className === "string") {
-            parentClasses.push(el.className.split(" ")[0]);
-          }
-          el = el.parentElement;
-        }
-        console.log(`[ImmerseReader][Debug] Answer ${i} parent chain:`, parentClasses.reverse().join(" > "));
-      }
-
-      // 检测页面是否在“查看全部”状态（URL 不带 /answer/）
-      const isViewAllMode = !url.match(/\/question\/\d+\/answer\/\d+/);
-      console.log("[ImmerseReader][Debug] Is view-all mode:", isViewAllMode);
-    } catch (e) {
-      console.warn("[ImmerseReader][Debug] zhihu debug error:", e);
-    }
-  })();
-
-  // ==================== 知乎问答选择模式（UI 层，纯展示，点击仅打印日志）====================
+  // ==================== 知乎问答选择模式 ==============================
   let selectionModeActive = false;
   let selectedAnswerEl: Element | null = null;
   const SELECTION_CSS = "ir-zhihu-selection";
@@ -216,16 +162,20 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as Element;
-    console.log("[ImmerseReader] Answer clicked, extracting content...");
+    console.log("[ImmerseReader] Answer clicked, target:", target.className.slice(0, 50));
 
     // 提取回答正文
     const richContent = target.querySelector(".RichContent-inner");
     if (!richContent) {
-      console.warn("[ImmerseReader] No .RichContent-inner found in selected answer");
+      console.warn("[ImmerseReader] No .RichContent-inner found, target children:", Array.from(target.children).map(c => c.className).slice(0, 3));
       exitSelectionMode();
       showToast("无法提取回答内容");
       return;
     }
+
+    const contentHtml = (richContent as HTMLElement).innerHTML;
+    const textContent = (richContent as HTMLElement).textContent || "";
+    console.log("[ImmerseReader] contentHtml length:", contentHtml.length, "textContent length:", textContent.length);
 
     // 获取问题标题
     const qTitleEl = document.querySelector(".QuestionHeader-title");
@@ -235,9 +185,6 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
     savedFootnotes = collectFootnotes(document);
 
     // 构造 ExtractedContent
-    const contentHtml = (richContent as HTMLElement).innerHTML;
-    const textContent = (richContent as HTMLElement).textContent || "";
-
     const extracted: ExtractedContent = {
       title: title,
       content: contentHtml,
@@ -249,7 +196,8 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
     };
 
     exitSelectionMode();
-    buildReaderView(extracted);
+    console.log("[ImmerseReader] Calling buildZhihuOverlayReader with extracted.content type:", typeof extracted.content);
+    buildZhihuOverlayReader(extracted);
   }
 
   function onAnswerHover(e: Event): void {
@@ -451,6 +399,148 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
       console.warn("[ImmerseReader] 脚注收集失败", err);
     }
     return defs;
+  }
+
+  // Overlay 模式阅读视图（知乎问答专用）
+  // 使用 iframe 实现完美的渲染隔离，不影响原页面性能
+  let zhihuOverlayEl: HTMLIFrameElement | null = null;
+  let zhihuOverlayActive = false;
+
+  function buildZhihuOverlayReader(content: ExtractedContent): void {
+    if (!content || Array.isArray(content) || typeof content.content !== 'string') {
+      console.warn("[ImmerseReader] Cannot build zhihu overlay reader: no content");
+      return;
+    }
+
+    const theme = prefs.theme;
+    const fontSize = prefs.fontSize;
+    const fontFamily = prefs.fontFamily;
+    const margin = (prefs as any).margin || 720;
+    const lineHeight = (prefs as any).lineHeight || 1.8;
+
+    const rt = Math.max(1, Math.ceil(content.length / 500));
+    const t = esc(content.title);
+    const s = content.siteName ? '<p class="ir-sitename">' + esc(content.siteName) + '</p>' : "";
+
+    // 主题颜色
+    const themeVars: Record<string, { bg: string; text: string; heading: string; muted: string; border: string; toolbarBg: string; link: string; codeBg: string; blockquoteBorder: string; blockquoteBg: string }> = {
+      light: { bg: "#faf9f6", text: "#1a1a1a", heading: "#0a0a0a", muted: "#666", border: "#e0ddd5", toolbarBg: "rgba(250,249,246,.95)", link: "#2563eb", codeBg: "#f1f0ed", blockquoteBorder: "#c4b998", blockquoteBg: "#f3f0ea" },
+      sepia: { bg: "#f4e8c1", text: "#3b3226", heading: "#2a2218", muted: "#7a6b50", border: "#d4c4a0", toolbarBg: "rgba(244,232,193,.95)", link: "#8b5e3c", codeBg: "#e8dcc0", blockquoteBorder: "#b8a888", blockquoteBg: "#ede0c0" },
+      dark: { bg: "#1a1a2e", text: "#e0d6c8", heading: "#f0ebe0", muted: "#9a8f80", border: "#2d2d44", toolbarBg: "rgba(26,26,46,.95)", link: "#7eb8f0", codeBg: "#222240", blockquoteBorder: "#4a4a6a", blockquoteBg: "#22223a" },
+      green: { bg: "#c7edcc", text: "#1a3b2e", heading: "#0a2a1e", muted: "#3d6b50", border: "#a8d4b0", toolbarBg: "rgba(199,237,204,.95)", link: "#1a6b40", codeBg: "#b8e0c0", blockquoteBorder: "#8ab898", blockquoteBg: "#b8e0c0" },
+    };
+    const c = themeVars[theme] || themeVars.light;
+
+    // 字体
+    const fontMap: Record<string, string> = {
+      serif: '"Literata","Georgia","Noto Serif SC","Source Han Serif SC","STSong","SimSun",serif',
+      sans: '"Inter","Helvetica Neue","PingFang SC","Microsoft YaHei","Hiragino Sans GB","Noto Sans SC",sans-serif',
+      mono: '"JetBrains Mono","Fira Code","Consolas","monospace"',
+    };
+    const fontFam = fontMap[fontFamily] || fontMap.serif;
+    const fontBase = chrome.runtime.getURL("fonts/");
+    const katexFontCss = katexCss.replace(/url\(fonts\//g, "url(" + fontBase);
+
+    // iframe HTML
+    const fontBaseEsc = fontBase.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <style>
+        *,*::before,*::after{box-sizing:border-box}
+        html,body{margin:0;padding:0;background:${c.bg};color:${c.text};font-family:${fontFam};font-size:${fontSize}px;line-height:${lineHeight};-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;height:100vh;overflow-y:auto}
+        .ir-toolbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:8px;height:48px;padding:0 16px;background:${c.toolbarBg};border-bottom:1px solid ${c.border};backdrop-filter:blur(8px)}
+        .ir-toolbar-title{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.85em;color:${c.muted}}
+        .ir-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:6px;background:transparent;color:${c.text};font-size:16px;cursor:pointer;transition:background .15s}
+        .ir-btn:hover{background:${c.border}}
+        .ir-container{max-width:${margin}px;margin:0 auto;padding:40px 24px 80px}
+        .ir-header{margin-bottom:48px;padding-bottom:24px;border-bottom:1px solid ${c.border}}
+        .ir-headline{font-size:2em;line-height:1.4;font-weight:700;color:${c.heading};margin:0 0 12px;letter-spacing:-.01em}
+        .ir-sitename{color:${c.muted};font-size:.85em;text-transform:uppercase;letter-spacing:.05em;margin:0}
+        .ir-article{word-wrap:break-word;text-align:left;-webkit-hyphens:auto;hyphens:auto;font-variant-east-asian:normal;overflow-wrap:break-word;line-break:loose}
+        .ir-article p{margin:0 0 1.2em;text-indent:2em;word-break:normal;line-break:auto;text-spacing:trim-start trim-end;overflow-wrap:break-word}
+        .ir-article h1,.ir-article h2,.ir-article h3,.ir-article h4{color:${c.heading};line-height:1.35;margin:1.8em 0 .6em;font-weight:600;text-indent:0}
+        .ir-article h1{font-size:1.6em}.ir-article h2{font-size:1.4em}.ir-article h3{font-size:1.2em}
+        .ir-article a{color:${c.link};text-decoration:none;border-bottom:1px solid transparent}
+        .ir-article a:hover{border-bottom-color:${c.link}}
+        .ir-article blockquote{margin:1.5em 0;padding:12px 24px;border-left:4px solid ${c.blockquoteBorder};background:${c.blockquoteBg};border-radius:0 8px 8px 0;font-style:italic;color:${c.muted};text-align:start;text-indent:0}
+        .ir-article pre{margin:1.2em 0;padding:16px 20px;background:${c.codeBg};border-radius:8px;font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;overflow-x:auto;line-height:1.6}
+        .ir-article code{font-family:"JetBrains Mono","Fira Code","monospace";font-size:.85em;background:${c.codeBg};padding:2px 6px;border-radius:4px}
+        .ir-article pre code{background:none;padding:0}
+        .ir-article img,.ir-article video,.ir-article canvas,.ir-article embed,.ir-article object,.ir-article svg,.ir-article iframe{max-width:100%;height:auto;margin:1.5em auto;display:block;border-radius:8px}
+        .ir-article picture{display:block;margin:1.5em auto;text-align:center}.ir-article picture img{margin:0}
+        .ir-article ul,.ir-article ol{margin:1em 0;padding-left:1.5em}.ir-article li{margin-bottom:.4em}
+        .ir-article hr{border:none;border-top:1px solid ${c.border};margin:2em 0}
+        .ir-article table{display:block;width:100%;overflow-x:auto;border-collapse:collapse;margin:1.5em 0;font-size:.9em}
+        .ir-article th,.ir-article td{padding:10px 14px;border:1px solid ${c.border};text-align:left}
+        .ir-article th{background:${c.codeBg};font-weight:600;color:${c.heading}}
+        .ir-footer{text-align:center;color:${c.muted};font-size:.85em;margin-top:60px;padding-top:24px;border-top:1px solid ${c.border}}
+        .ir-article figcaption{text-align:center;font-size:.85em;color:${c.muted};margin:.6em 0 1.5em;font-style:italic}
+        .ir-article figure{margin:1.5em 0}.ir-article figure img{margin:0 auto}
+        @media(max-width:768px){.ir-container{padding:24px 16px 60px}.ir-headline{font-size:1.5em}}
+        @media(max-width:480px){.ir-container{padding:16px 12px 40px}.ir-headline{font-size:1.3em}}
+      </style>
+      <style>${katexFontCss}</style></head><body>
+      <div class="ir-toolbar">
+        <button class="ir-btn" id="ir-back" title="返回原文">×</button>
+        <span class="ir-toolbar-title">${esc(t)}</span>
+      </div>
+      <main class="ir-container">
+        <header class="ir-header">
+          <h1 class="ir-headline">${esc(t)}</h1>${s}
+        </header>
+        <article class="ir-article">${content.content}</article>
+        <footer class="ir-footer"><p>— 约 ${rt} 分钟阅读 —</p></footer>
+      </main>
+      </body></html>`;
+
+    // 创建 iframe
+    const iframe = document.createElement("iframe");
+    iframe.id = "ir-zhihu-overlay";
+    iframe.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;border:none;background:" + c.bg;
+    iframe.setAttribute("allow", "fullscreen");
+    document.body.appendChild(iframe);
+    zhihuOverlayEl = iframe;
+    zhihuOverlayActive = true;
+    active = true;
+    chrome.storage.local.set({ irActive: true });
+
+    // 写入内容
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(html);
+      iframeDoc.close();
+
+      // 绑定关闭按钮
+      iframeDoc.getElementById("ir-back")?.addEventListener("click", doDeactivate);
+
+      // KaTeX 渲染
+      try {
+        const mathEls = iframeDoc.querySelectorAll("[data-tex]");
+        for (let i = 0; i < mathEls.length; i++) {
+          const el = mathEls[i];
+          const tex = el.getAttribute("data-tex") || (el.textContent || "").trim();
+          const isBlock = el.getAttribute("data-tex-display") === "block";
+          if (tex) {
+            try {
+              const rendered = katex.renderToString(tex, { throwOnError: false, displayMode: isBlock, strict: "ignore" });
+              el.innerHTML = rendered;
+              if (isBlock) {
+                (el as HTMLElement).style.display = "block";
+                (el as HTMLElement).style.textAlign = "center";
+                (el as HTMLElement).style.margin = "1em 0";
+              }
+            } catch (err) {
+              console.warn("[ImmerseReader] KaTeX render failed:", err);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[ImmerseReader] KaTeX rendering failed:", err);
+      }
+    }
+
+    console.log("[ImmerseReader] Zhihu overlay reader (iframe) built");
   }
 
 function buildReaderView(content: ExtractedContent) {
@@ -1022,7 +1112,16 @@ function buildReaderView(content: ExtractedContent) {
    active = false;
     chrome.storage.local.set({ irActive: false });
 
-    // buildReaderView 清空了文档，杀死了所有 JS 上下文和 Web Components 实例。
+    // 知乎问答页面使用 overlay 模式，直接移除覆盖层即可，原页面完全保留
+    if (zhihuOverlayActive && zhihuOverlayEl) {
+      zhihuOverlayEl.remove();
+      zhihuOverlayEl = null;
+      zhihuOverlayActive = false;
+      console.log("[ImmerseReader] Zhihu overlay removed, original page preserved");
+      return;
+    }
+
+    // 普通阅读模式：buildReaderView 清空了文档，杀死了所有 JS 上下文和 Web Components 实例。
     // DOM 恢复（innerHTML）会同步触发组件的 connectedCallback，
     // 而数据依赖已不存在，导致组件初始化失败并可能阻塞主线程。
     // 唯一可靠的方案：直接刷新页面，让浏览器重新加载完整页面。
