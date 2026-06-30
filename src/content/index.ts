@@ -242,19 +242,26 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
         if (active) {
           document.documentElement.setAttribute("data-ir-theme", "custom");
           applyCustomTheme(message.bg, message.text, message.link);
+          syncPrefsToIframe();
         }
         chrome.storage.sync.set({ irTheme: "custom", irCustomBg: message.bg as string, irCustomText: message.text as string, irCustomLink: message.link as string });
         sendResponse({ ok: true });
         return false;
       case "updateMargin":
         prefs.margin = message.margin as number;
-        if (active) document.documentElement.style.setProperty("--ir-max-width", message.margin + "px");
+        if (active) {
+          document.documentElement.style.setProperty("--ir-max-width", message.margin + "px");
+          syncPrefsToIframe();
+        }
         chrome.storage.sync.set({ irMargin: message.margin });
         sendResponse({ ok: true });
         return false;
       case "updateLineHeight":
         prefs.lineHeight = message.lineHeight as number;
-        if (active) document.documentElement.style.setProperty("--ir-line-height", message.lineHeight);
+        if (active) {
+          document.documentElement.style.setProperty("--ir-line-height", message.lineHeight);
+          syncPrefsToIframe();
+        }
         chrome.storage.sync.set({ irLineHeight: message.lineHeight });
         sendResponse({ ok: true });
         return false;
@@ -264,6 +271,7 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
         if (active) {
           document.documentElement.setAttribute("data-ir-theme", message.theme);
           setThemeColors(message.theme);
+          syncPrefsToIframe();
         }
         chrome.storage.sync.set({ irTheme: message.theme });
         sendResponse({ ok: true });
@@ -273,13 +281,17 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
         if (active) {
           const s = Math.max(14, Math.min(32, message.size));
           document.documentElement.style.setProperty("--ir-font-size", s + "px");
+          syncPrefsToIframe();
         }
         chrome.storage.sync.set({ irFontSize: message.size });
         sendResponse({ ok: true });
         return false;
       case "updateFontFamily":
         prefs.fontFamily = message.family;
-        if (active) document.documentElement.setAttribute("data-ir-font", message.family);
+        if (active) {
+          document.documentElement.setAttribute("data-ir-font", message.family);
+          syncPrefsToIframe();
+        }
         chrome.storage.sync.set({ irFontFamily: message.family });
         sendResponse({ ok: true });
         return false;
@@ -405,6 +417,78 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
   // 使用 iframe 实现完美的渲染隔离，不影响原页面性能
   let zhihuOverlayEl: HTMLIFrameElement | null = null;
   let zhihuOverlayActive = false;
+  let savedBodyOverflow = "";
+
+  // 同步设置到 iframe 内
+  function syncPrefsToIframe(): void {
+    if (!zhihuOverlayActive || !zhihuOverlayEl) return;
+    const doc = zhihuOverlayEl.contentDocument || zhihuOverlayEl.contentWindow?.document;
+    if (!doc || !doc.documentElement) return;
+    const root = doc.documentElement;
+    const body = doc.body;
+
+    root.style.setProperty("--ir-font-size", prefs.fontSize + "px");
+    root.style.setProperty("--ir-line-height", String(prefs.lineHeight || 1.8));
+    root.style.setProperty("--ir-max-width", (prefs as any).margin + "px");
+
+    // 字体
+    const fontMap: Record<string, string> = {
+      serif: '"Literata","Georgia","Noto Serif SC","Source Han Serif SC","STSong","SimSun",serif',
+      sans: '"Inter","Helvetica Neue","PingFang SC","Microsoft YaHei","Hiragino Sans GB","Noto Sans SC",sans-serif',
+      mono: '"JetBrains Mono","Fira Code","Consolas","monospace"',
+    };
+    body.style.fontFamily = fontMap[prefs.fontFamily] || fontMap.serif;
+
+    // 主题颜色
+    const themeVars: Record<string, { bg: string; text: string; heading: string; muted: string; border: string; toolbarBg: string; link: string; codeBg: string; blockquoteBorder: string; blockquoteBg: string }> = {
+      light: { bg: "#faf9f6", text: "#1a1a1a", heading: "#0a0a0a", muted: "#666", border: "#e0ddd5", toolbarBg: "rgba(250,249,246,.95)", link: "#2563eb", codeBg: "#f1f0ed", blockquoteBorder: "#c4b998", blockquoteBg: "#f3f0ea" },
+      sepia: { bg: "#f4e8c1", text: "#3b3226", heading: "#2a2218", muted: "#7a6b50", border: "#d4c4a0", toolbarBg: "rgba(244,232,193,.95)", link: "#8b5e3c", codeBg: "#e8dcc0", blockquoteBorder: "#b8a888", blockquoteBg: "#ede0c0" },
+      dark: { bg: "#1a1a2e", text: "#e0d6c8", heading: "#f0ebe0", muted: "#9a8f80", border: "#2d2d44", toolbarBg: "rgba(26,26,46,.95)", link: "#7eb8f0", codeBg: "#222240", blockquoteBorder: "#4a4a6a", blockquoteBg: "#22223a" },
+      green: { bg: "#c7edcc", text: "#1a3b2e", heading: "#0a2a1e", muted: "#3d6b50", border: "#a8d4b0", toolbarBg: "rgba(199,237,204,.95)", link: "#1a6b40", codeBg: "#b8e0c0", blockquoteBorder: "#8ab898", blockquoteBg: "#b8e0c0" },
+    };
+    let c;
+    if (prefs.theme === "custom") {
+      c = {
+        bg: prefs.customBg || "#faf9f6",
+        text: prefs.customText || "#1a1a1a",
+        heading: prefs.customText || "#1a1a1a",
+        muted: adjustColor(prefs.customText || "#1a1a1a", -50),
+        border: adjustColor(prefs.customText || "#1a1a1a", 200),
+        toolbarBg: hexToRgba(prefs.customBg || "#faf9f6", 0.95),
+        link: prefs.customLink || "#2563eb",
+        codeBg: adjustColor(prefs.customBg || "#faf9f6", -10),
+        blockquoteBorder: prefs.customLink || "#2563eb",
+        blockquoteBg: adjustColor(prefs.customBg || "#faf9f6", -3),
+      };
+    } else {
+      c = themeVars[prefs.theme] || themeVars.light;
+    }
+    body.style.background = c.bg;
+    body.style.color = c.text;
+    body.style.fontSize = prefs.fontSize + "px";
+    body.style.lineHeight = String(prefs.lineHeight || 1.8);
+
+    root.style.setProperty("--ir-bg", c.bg);
+    root.style.setProperty("--ir-text", c.text);
+    root.style.setProperty("--ir-heading", c.heading);
+    root.style.setProperty("--ir-muted", c.muted);
+    root.style.setProperty("--ir-border", c.border);
+    root.style.setProperty("--ir-toolbar-bg", c.toolbarBg);
+    root.style.setProperty("--ir-link", c.link);
+    root.style.setProperty("--ir-code-bg", c.codeBg);
+    root.style.setProperty("--ir-blockquote-border", c.blockquoteBorder);
+    root.style.setProperty("--ir-blockquote-bg", c.blockquoteBg);
+
+    // 标题栏颜色
+    const toolbar = doc.querySelector(".ir-toolbar") as HTMLElement;
+    if (toolbar) toolbar.style.background = c.toolbarBg;
+
+    // 容器宽度
+    const container = doc.querySelector(".ir-container");
+    if (container) {
+      (container as HTMLElement).style.maxWidth = (prefs as any).margin + "px";
+    }
+  }
 
   function buildZhihuOverlayReader(content: ExtractedContent): void {
     if (!content || Array.isArray(content) || typeof content.content !== 'string') {
@@ -429,7 +513,23 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
       dark: { bg: "#1a1a2e", text: "#e0d6c8", heading: "#f0ebe0", muted: "#9a8f80", border: "#2d2d44", toolbarBg: "rgba(26,26,46,.95)", link: "#7eb8f0", codeBg: "#222240", blockquoteBorder: "#4a4a6a", blockquoteBg: "#22223a" },
       green: { bg: "#c7edcc", text: "#1a3b2e", heading: "#0a2a1e", muted: "#3d6b50", border: "#a8d4b0", toolbarBg: "rgba(199,237,204,.95)", link: "#1a6b40", codeBg: "#b8e0c0", blockquoteBorder: "#8ab898", blockquoteBg: "#b8e0c0" },
     };
-    const c = themeVars[theme] || themeVars.light;
+    let c;
+    if (theme === "custom") {
+      c = {
+        bg: prefs.customBg || "#faf9f6",
+        text: prefs.customText || "#1a1a1a",
+        heading: prefs.customText || "#1a1a1a",
+        muted: adjustColor(prefs.customText || "#1a1a1a", -50),
+        border: adjustColor(prefs.customText || "#1a1a1a", 200),
+        toolbarBg: hexToRgba(prefs.customBg || "#faf9f6", 0.95),
+        link: prefs.customLink || "#2563eb",
+        codeBg: adjustColor(prefs.customBg || "#faf9f6", -10),
+        blockquoteBorder: prefs.customLink || "#2563eb",
+        blockquoteBg: adjustColor(prefs.customBg || "#faf9f6", -3),
+      };
+    } else {
+      c = themeVars[theme] || themeVars.light;
+    }
 
     // 字体
     const fontMap: Record<string, string> = {
@@ -447,7 +547,7 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
       <meta name="viewport" content="width=device-width,initial-scale=1">
       <style>
         *,*::before,*::after{box-sizing:border-box}
-        html,body{margin:0;padding:0;background:${c.bg};color:${c.text};font-family:${fontFam};font-size:${fontSize}px;line-height:${lineHeight};-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;height:100vh;overflow-y:auto}
+        html,body{margin:0;padding:0;background:${c.bg};color:${c.text};font-family:${fontFam};font-size:${fontSize}px;line-height:${lineHeight};-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
         .ir-toolbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:8px;height:48px;padding:0 16px;background:${c.toolbarBg};border-bottom:1px solid ${c.border};backdrop-filter:blur(8px)}
         .ir-toolbar-title{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.85em;color:${c.muted}}
         .ir-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:6px;background:transparent;color:${c.text};font-size:16px;cursor:pointer;transition:background .15s}
@@ -476,13 +576,21 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         .ir-footer{text-align:center;color:${c.muted};font-size:.85em;margin-top:60px;padding-top:24px;border-top:1px solid ${c.border}}
         .ir-article figcaption{text-align:center;font-size:.85em;color:${c.muted};margin:.6em 0 1.5em;font-style:italic}
         .ir-article figure{margin:1.5em 0}.ir-article figure img{margin:0 auto}
+        .RichContent-EntityWord svg{display:none}
+        .ir-img-preview{cursor:zoom-out;max-width:none!important;max-height:none!important;border-radius:0!important;position:fixed;top:0;left:0;width:100vw;height:100vh;object-fit:contain;background:rgba(0,0,0,.85);z-index:9999;margin:0!important}
         @media(max-width:768px){.ir-container{padding:24px 16px 60px}.ir-headline{font-size:1.5em}}
         @media(max-width:480px){.ir-container{padding:16px 12px 40px}.ir-headline{font-size:1.3em}}
       </style>
       <style>${katexFontCss}</style></head><body>
-      <div class="ir-toolbar">
+      <div class="ir-progress-bar" style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:${c.border};pointer-events:none"><div id="ir-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg,${c.link},#8b5e3c);transition:width .1s linear"></div></div>
+      <div class="ir-toolbar" style="position:sticky;top:0">
         <button class="ir-btn" id="ir-back" title="返回原文">×</button>
         <span class="ir-toolbar-title">${esc(t)}</span>
+        <div class="ir-toolbar-right" style="display:flex;gap:4px">
+          <button class="ir-btn" id="ir-summarize" title="AI 摘要（Phase 2）">&#128203;</button>
+          <button class="ir-btn ir-toc-btn" id="ir-toc-btn" title="目录" style="display:none">&#9776;</button>
+          <button class="ir-btn" id="ir-fullscreen" title="全屏阅读">&#9974;</button>
+        </div>
       </div>
       <main class="ir-container">
         <header class="ir-header">
@@ -491,6 +599,10 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         <article class="ir-article">${content.content}</article>
         <footer class="ir-footer"><p>— 约 ${rt} 分钟阅读 —</p></footer>
       </main>
+      <nav class="ir-toc-sidebar" id="ir-toc-sidebar" style="position:fixed;top:48px;right:-300px;bottom:0;width:260px;z-index:90;overflow-y:auto;padding:24px 16px 40px;background:${c.bg};border-left:1px solid ${c.border};font-size:13px;line-height:1.5;transition:right .25s ease">
+        <div class="ir-toc-title" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:${c.muted};margin-bottom:12px;padding:0 8px">目录</div>
+        <div class="ir-toc-list" id="ir-toc-list" style="list-style:none;margin:0;padding:0"></div>
+      </nav>
       </body></html>`;
 
     // 创建 iframe
@@ -499,6 +611,9 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
     iframe.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;border:none;background:" + c.bg;
     iframe.setAttribute("allow", "fullscreen");
     document.body.appendChild(iframe);
+    // 禁止原页面滚动，防止滚动条穿透
+    savedBodyOverflow = document.body.style.overflow || "";
+    document.body.style.overflow = "hidden";
     zhihuOverlayEl = iframe;
     zhihuOverlayActive = true;
     active = true;
@@ -514,29 +629,153 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
       // 绑定关闭按钮
       iframeDoc.getElementById("ir-back")?.addEventListener("click", doDeactivate);
 
+      // 绑定全屏按钮
+      iframeDoc.getElementById("ir-fullscreen")?.addEventListener("click", () => {
+        const fs = iframe.requestFullscreen ? iframe : iframeDoc.documentElement;
+        if (!document.fullscreenElement) fs.requestFullscreen?.();
+        else document.exitFullscreen?.();
+      });
+
+      // 绑定 AI 摘要按钮
+      iframeDoc.getElementById("ir-summarize")?.addEventListener("click", () => {
+        showToast("AI 摘要功能将在 Phase 2 中实现");
+      });
+
+      // 目录：生成 TOC 并绑定显示/隐藏
+      (function buildToc() {
+        const article = iframeDoc.querySelector(".ir-article");
+        if (!article) return;
+        const headings = article.querySelectorAll("h1, h2, h3, h4");
+        console.log("[ImmerseReader][iframe] headings found:", headings.length);
+        if (headings.length < 2) return;
+        const tocBtn = iframeDoc.getElementById("ir-toc-btn");
+        const tocSidebar = iframeDoc.getElementById("ir-toc-sidebar");
+        const tocList = iframeDoc.getElementById("ir-toc-list");
+        if (!tocBtn || !tocSidebar || !tocList) return;
+        tocBtn.style.setProperty("display", "inline-flex", "important");
+        // 生成目录项样式
+        const linkBaseStyle = "display:block;padding:3px 8px;border-radius:4px;color:" + c.muted + ";text-decoration:none;border-left:2px solid transparent;cursor:pointer;transition:all .15s";
+        headings.forEach((h, i) => {
+          const level = parseInt(h.tagName.charAt(1));
+          const id = "ir-h-" + i;
+          (h as HTMLElement).id = id;
+          const link = iframeDoc.createElement("a");
+          link.style.cssText = linkBaseStyle;
+          if (level === 1) link.style.paddingLeft = "8px";
+          else if (level === 2) link.style.paddingLeft = "24px";
+          else if (level === 3) link.style.paddingLeft = "40px";
+          else link.style.paddingLeft = "56px";
+          link.textContent = (h.textContent || "").trim();
+          link.href = "#" + id;
+          link.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            const target = iframeDoc.getElementById(id);
+            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+          tocList.appendChild(link);
+        });
+        tocBtn.addEventListener("click", () => {
+          const showing = tocSidebar.classList.contains("open");
+          tocSidebar.classList.toggle("open");
+          tocSidebar.style.right = showing ? "-300px" : "0";
+        });
+      })();
+
       // KaTeX 渲染
       try {
         const mathEls = iframeDoc.querySelectorAll("[data-tex]");
+        console.log("[ImmerseReader][iframe] math elements found:", mathEls.length);
         for (let i = 0; i < mathEls.length; i++) {
           const el = mathEls[i];
-          const tex = el.getAttribute("data-tex") || (el.textContent || "").trim();
-          const isBlock = el.getAttribute("data-tex-display") === "block";
-          if (tex) {
-            try {
-              const rendered = katex.renderToString(tex, { throwOnError: false, displayMode: isBlock, strict: "ignore" });
-              el.innerHTML = rendered;
-              if (isBlock) {
-                (el as HTMLElement).style.display = "block";
-                (el as HTMLElement).style.textAlign = "center";
-                (el as HTMLElement).style.margin = "1em 0";
-              }
-            } catch (err) {
-              console.warn("[ImmerseReader] KaTeX render failed:", err);
+          let tex = el.getAttribute("data-tex") || (el.textContent || "").trim();
+          if (!tex) continue;
+          const hasDisplayClass = el.querySelector(".MathJax_SVG_Display, .MathJax_Display") != null;
+          const hasDisplayScript = el.querySelector('script[type*="display"], script[type*="mode=display"]') != null;
+          const hasDisplayAttr = el.getAttribute("data-tex-display") === "block";
+          const eeimgVal = el.getAttribute("data-eeimg");
+          const isBlock = hasDisplayClass || hasDisplayScript || hasDisplayAttr || eeimgVal === "2";
+          tex = tex.replace(/\\begin\{align\}/g, "\\begin{aligned}").replace(/\\end\{align\}/g, "\\end{aligned}");
+          if (tex.includes("\\tag") && !isBlock) {
+            tex = "\\displaystyle " + tex;
+          }
+          try {
+            const rendered = katex.renderToString(tex, { throwOnError: false, displayMode: isBlock, strict: "ignore" });
+            el.innerHTML = rendered;
+            if (isBlock) {
+              (el as HTMLElement).style.display = "block";
+              (el as HTMLElement).style.textAlign = "center";
+              (el as HTMLElement).style.margin = "1em 0";
+            } else {
+              (el as HTMLElement).style.display = "inline";
             }
+          } catch (err) {
+            console.warn("[ImmerseReader] KaTeX render failed:", err, tex);
           }
         }
       } catch (err) {
         console.warn("[ImmerseReader] KaTeX rendering failed:", err);
+      }
+
+      // 图片点击放大
+      (function attachImgPreview() {
+        const imgs = iframeDoc.querySelectorAll(".ir-article img");
+        for (let i = 0; i < imgs.length; i++) {
+          const img = imgs[i];
+          img.style.cursor = "zoom-in";
+          img.addEventListener("click", () => {
+            const preview = iframeDoc.createElement("img");
+            preview.className = "ir-img-preview";
+            preview.src = img.src;
+            preview.alt = img.alt || "";
+            iframeDoc.body.appendChild(preview);
+            preview.addEventListener("click", () => preview.remove());
+          });
+        }
+      })();
+
+      // 进度条滚动监听 + 目录高亮
+      const progressFill = iframeDoc.getElementById("ir-progress-fill");
+      const tocList = iframeDoc.getElementById("ir-toc-list");
+      const tocLinks = tocList ? Array.from(tocList.querySelectorAll("a")) : [];
+      if (progressFill && iframe.contentWindow) {
+        iframe.contentWindow.addEventListener("scroll", () => {
+          const win = iframe.contentWindow;
+          if (!win) return;
+          const doc = win.document;
+          const st = doc.documentElement.scrollTop || doc.body.scrollTop;
+          const sh = doc.documentElement.scrollHeight - win.innerHeight;
+          progressFill.style.width = (sh > 0 ? (st / sh * 100) : 0) + "%";
+          if (tocLinks.length > 0) {
+            let activeIdx = -1;
+            const offset = 60;
+            for (let i = 0; i < tocLinks.length; i++) {
+              const href = tocLinks[i].getAttribute("href") || "";
+              const id = href.replace("#", "");
+              const heading = doc.getElementById(id);
+              if (heading) {
+                const top = heading.getBoundingClientRect().top;
+                if (top <= offset) activeIdx = i;
+                else break;
+              }
+            }
+            tocLinks.forEach((link, i) => {
+              if (i === activeIdx) {
+                link.style.color = c.link;
+                link.style.borderLeftColor = c.link;
+                link.style.background = "rgba(0,0,0,0.03)";
+              } else {
+                link.style.color = c.muted;
+                link.style.borderLeftColor = "transparent";
+                link.style.background = "transparent";
+              }
+            });
+          }
+        }, { passive: true });
+        // 初始化一次
+        const doc = iframe.contentWindow.document;
+        const st = doc.documentElement.scrollTop || doc.body.scrollTop;
+        const sh = doc.documentElement.scrollHeight - iframe.contentWindow.innerHeight;
+        progressFill.style.width = (sh > 0 ? (st / sh * 100) : 0) + "%";
       }
     }
 
@@ -1117,6 +1356,8 @@ function buildReaderView(content: ExtractedContent) {
       zhihuOverlayEl.remove();
       zhihuOverlayEl = null;
       zhihuOverlayActive = false;
+      // 恢复原页面滚动
+      document.body.style.overflow = savedBodyOverflow;
       console.log("[ImmerseReader] Zhihu overlay removed, original page preserved");
       return;
     }
