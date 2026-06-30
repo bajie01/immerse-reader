@@ -41,6 +41,237 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
     if (p.irCustomLink) (prefs as any).customLink = p.irCustomLink as string;
   });
 
+  // ==================== 知乎问答页面检测（调试用，纯日志，不影响功能）====================
+  (function debugZhihuQuestion() {
+    try {
+      const url = location.href;
+      if (!url.includes("zhihu.com/question")) return;
+
+      console.log("[ImmerseReader][Debug] Zhihu question page detected, URL:", url);
+
+      // 检测问题标题
+      const qTitle = document.querySelector(".QuestionHeader-title");
+      console.log("[ImmerseReader][Debug] QuestionHeader-title:", qTitle ? qTitle.textContent?.trim().slice(0, 50) : "not found");
+
+      // 检测推荐回答（在 .Card.AnswerCard 内）
+      const answerCards = document.querySelectorAll(".Card.AnswerCard .ContentItem.AnswerItem");
+      console.log("[ImmerseReader][Debug] .Card.AnswerCard .AnswerItem count:", answerCards.length);
+
+      // 检测 List-item 回答
+      const listItems = document.querySelectorAll(".List-item .ContentItem.AnswerItem");
+      console.log("[ImmerseReader][Debug] .List-item .AnswerItem count:", listItems.length);
+
+      // 检测所有 AnswerItem
+      const allAnswers = document.querySelectorAll(".ContentItem.AnswerItem");
+      console.log("[ImmerseReader][Debug] All .AnswerItem count:", allAnswers.length);
+
+      // 检测 RichContent-inner
+      const richContents = document.querySelectorAll(".RichContent-inner");
+      console.log("[ImmerseReader][Debug] .RichContent-inner count:", richContents.length);
+
+      // 检测展开按钮
+      const expandBtns = document.querySelectorAll(".ContentItem-expandButton");
+      console.log("[ImmerseReader][Debug] .ContentItem-expandButton count:", expandBtns.length);
+
+      // 打印每个回答的父级结构（前 3 个）
+      for (let i = 0; i < Math.min(allAnswers.length, 3); i++) {
+        const item = allAnswers[i];
+        const parentClasses: string[] = [];
+        let el: Element | null = item;
+        for (let j = 0; j < 5 && el; j++) {
+          if (el.className && typeof el.className === "string") {
+            parentClasses.push(el.className.split(" ")[0]);
+          }
+          el = el.parentElement;
+        }
+        console.log(`[ImmerseReader][Debug] Answer ${i} parent chain:`, parentClasses.reverse().join(" > "));
+      }
+
+      // 检测页面是否在“查看全部”状态（URL 不带 /answer/）
+      const isViewAllMode = !url.match(/\/question\/\d+\/answer\/\d+/);
+      console.log("[ImmerseReader][Debug] Is view-all mode:", isViewAllMode);
+    } catch (e) {
+      console.warn("[ImmerseReader][Debug] zhihu debug error:", e);
+    }
+  })();
+
+  // ==================== 知乎问答选择模式（UI 层，纯展示，点击仅打印日志）====================
+  let selectionModeActive = false;
+  let selectedAnswerEl: Element | null = null;
+  const SELECTION_CSS = "ir-zhihu-selection";
+  const SELECTION_HIGHLIGHT_CSS = "ir-zhihu-highlight";
+  const SELECTION_HOVER_CSS = "ir-zhihu-hover";
+
+  function injectSelectionStyles(): void {
+    if (document.getElementById("ir-zhihu-selection-style")) return;
+    const style = document.createElement("style");
+    style.id = "ir-zhihu-selection-style";
+    style.textContent = `
+      .${SELECTION_HIGHLIGHT_CSS} {
+        outline: 2px solid #1772F6 !important;
+        outline-offset: 2px !important;
+        cursor: pointer !important;
+        transition: outline 0.2s ease;
+      }
+      .${SELECTION_HOVER_CSS} {
+        outline: 2px solid #4a90e2 !important;
+        outline-offset: 4px !important;
+        cursor: pointer !important;
+      }
+      .${SELECTION_CSS}-tip {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 99999;
+        background: #1772F6;
+        color: white;
+        text-align: center;
+        padding: 8px 0;
+        font-size: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        pointer-events: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .${SELECTION_CSS}-tip-close {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        pointer-events: auto;
+        font-size: 18px;
+        line-height: 1;
+        padding: 4px 8px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function removeSelectionStyles(): void {
+    const style = document.getElementById("ir-zhihu-selection-style");
+    if (style) style.remove();
+  }
+
+  function enterSelectionMode(): void {
+    console.log("[ImmerseReader] Entering selection mode for Zhihu question page");
+    selectionModeActive = true;
+    selectedAnswerEl = null;
+
+    injectSelectionStyles();
+
+    const answerEls = getSelectableAnswers();
+    console.log("[ImmerseReader] Found", answerEls.length, "selectable answers");
+
+    for (let i = 0; i < answerEls.length; i++) {
+      const el = answerEls[i];
+      el.classList.add(SELECTION_HIGHLIGHT_CSS);
+      el.addEventListener("click", onAnswerClick, true);
+      el.addEventListener("mouseenter", onAnswerHover);
+      el.addEventListener("mouseleave", onAnswerLeave);
+    }
+
+    showSelectionTip();
+  }
+
+  function exitSelectionMode(): void {
+    if (!selectionModeActive) return;
+    console.log("[ImmerseReader] Exiting selection mode");
+    selectionModeActive = false;
+
+    const highlighted = document.querySelectorAll("." + SELECTION_HIGHLIGHT_CSS + ", ." + SELECTION_HOVER_CSS);
+    for (let i = 0; i < highlighted.length; i++) {
+      const el = highlighted[i];
+      el.classList.remove(SELECTION_HIGHLIGHT_CSS, SELECTION_HOVER_CSS);
+      el.removeEventListener("click", onAnswerClick, true);
+      el.removeEventListener("mouseenter", onAnswerHover);
+      el.removeEventListener("mouseleave", onAnswerLeave);
+    }
+
+    const tip = document.querySelector("." + SELECTION_CSS + "-tip");
+    if (tip) tip.remove();
+
+    removeSelectionStyles();
+  }
+
+  function getSelectableAnswers(): Element[] {
+    const answers: Element[] = [];
+    const cardAnswers = document.querySelectorAll(".Card.AnswerCard .ContentItem.AnswerItem");
+    for (let i = 0; i < cardAnswers.length; i++) {
+      answers.push(cardAnswers[i]);
+    }
+    const listAnswers = document.querySelectorAll(".List-item .ContentItem.AnswerItem");
+    for (let i = 0; i < listAnswers.length; i++) {
+      answers.push(listAnswers[i]);
+    }
+    const unique = new Set(answers);
+    return Array.from(unique);
+  }
+
+  function isZhihuQuestionPage(): boolean {
+    return /zhihu\.com\/question\/\d+/.test(location.href);
+  }
+
+  function onAnswerClick(e: Event): void {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as Element;
+    console.log("[ImmerseReader] Answer clicked, extracting content...");
+
+    // 提取回答正文
+    const richContent = target.querySelector(".RichContent-inner");
+    if (!richContent) {
+      console.warn("[ImmerseReader] No .RichContent-inner found in selected answer");
+      exitSelectionMode();
+      showToast("无法提取回答内容");
+      return;
+    }
+
+    // 获取问题标题
+    const qTitleEl = document.querySelector(".QuestionHeader-title");
+    const title = qTitleEl ? (qTitleEl.textContent || "").trim() : document.title;
+
+    // 收集脚注定义
+    savedFootnotes = collectFootnotes(document);
+
+    // 构造 ExtractedContent
+    const contentHtml = (richContent as HTMLElement).innerHTML;
+    const textContent = (richContent as HTMLElement).textContent || "";
+
+    const extracted: ExtractedContent = {
+      title: title,
+      content: contentHtml,
+      textContent: textContent,
+      excerpt: textContent.slice(0, 200),
+      byline: null,
+      siteName: "知乎",
+      length: textContent.length,
+    };
+
+    exitSelectionMode();
+    buildReaderView(extracted);
+  }
+
+  function onAnswerHover(e: Event): void {
+    (e.currentTarget as Element).classList.add(SELECTION_HOVER_CSS);
+  }
+
+  function onAnswerLeave(e: Event): void {
+    (e.currentTarget as Element).classList.remove(SELECTION_HOVER_CSS);
+  }
+
+  function showSelectionTip(): void {
+    if (document.querySelector("." + SELECTION_CSS + "-tip")) return;
+    const tip = document.createElement("div");
+    tip.className = SELECTION_CSS + "-tip";
+    tip.innerHTML = '<span>点击选择要阅读的回答</span><span class="' + SELECTION_CSS + '-tip-close">×</span>';
+    tip.querySelector("." + SELECTION_CSS + "-tip-close")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      exitSelectionMode();
+    });
+    document.body.appendChild(tip);
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message.action) {
       case "toggleReader":
@@ -745,6 +976,12 @@ function buildReaderView(content: ExtractedContent) {
         return { active: false, blocked: true, reason: domBlock.reason };
       }
       console.log("[ImmerseReader] DOM layer passed, proceeding to extract");
+
+      // 知乎问答页面：进入选择模式，让用户手动选择回答
+      if (isZhihuQuestionPage()) {
+        enterSelectionMode();
+        return { active: false };
+      }
     }
 
     // Save original state
