@@ -252,6 +252,7 @@ if ((window as any).__IMMERSE_READER_INJECTED) {
         if (active) {
           document.documentElement.style.setProperty("--ir-max-width", message.margin + "px");
           syncPrefsToIframe();
+          normalPositionToc?.();
         }
         chrome.storage.sync.set({ irMargin: message.margin });
         sendResponse({ ok: true });
@@ -351,17 +352,38 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 .ir-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--ir-link),#8b5e3c);transition:width .1s linear}
 .ir-toc-btn{display:none;font-size:14px;padding:0 6px}
 .ir-toc-btn.has-toc{display:inline-flex}
-.ir-toc-sidebar{position:fixed;top:var(--ir-toolbar-height);right:-300px;bottom:0;width:260px;z-index:90;overflow-y:auto;padding:24px 16px 40px;background:var(--ir-bg);border-left:1px solid var(--ir-border);font-size:13px;line-height:1.5;transition:right .25s ease}
-.ir-toc-sidebar.open{right:0}
-.ir-toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--ir-muted);margin-bottom:12px;padding:0 8px}
+.ir-ai-panel{position:fixed;top:calc(var(--ir-toolbar-height) + 16px);left:16px;width:300px;z-index:90;background:var(--ir-bg);border:1px solid var(--ir-border);border-radius:10px;font-size:13px;line-height:1.5;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.ir-ai-panel.collapsed .ir-ai-summary-body{max-height:0!important;opacity:0}
+.ir-ai-panel.collapsed .ir-ai-summary{padding:10px 14px}
+.ir-ai-summary{padding:14px 14px 12px;transition:padding .2s ease}
+.ir-ai-summary-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--ir-muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.ir-ai-summary-toggle{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:none;border-radius:4px;background:transparent;color:var(--ir-muted);cursor:pointer;transition:background .15s}
+.ir-ai-summary-toggle:hover{background:var(--ir-code-bg)}
+.ir-ai-summary-toggle svg{width:12px;height:12px;transition:transform .2s ease}
+.ir-ai-panel.collapsed .ir-ai-summary-toggle svg{transform:rotate(-90deg)}
+.ir-ai-summary-body{transition:max-height .2s ease,opacity .2s ease;overflow:hidden}
+.ir-ai-summary-content{font-size:13px;line-height:1.6;color:var(--ir-text);padding:10px;border-radius:6px;background:var(--ir-code-bg);max-height:200px;overflow-y:auto}
+.ir-ai-summary-empty{color:var(--ir-muted);font-size:13px;text-align:center;padding:14px 8px}
+.ir-ai-summary-actions{display:flex;gap:6px;margin-top:10px}
+.ir-ai-summary-btn{flex:1;padding:7px 10px;font-size:12px;border:1px solid var(--ir-border);border-radius:6px;background:transparent;color:var(--ir-text);cursor:pointer;transition:background .15s}
+.ir-ai-summary-btn:hover{background:var(--ir-border)}
+.ir-ai-summary-btn.primary{background:var(--ir-link);border-color:var(--ir-link);color:#fff}
+.ir-ai-summary-btn.primary:hover{opacity:.9}
+.ir-container{max-width:var(--ir-max-width);margin:0 auto;padding:40px 24px 80px}
+.ir-toc-column{position:fixed;bottom:16px;min-width:180px;max-width:260px;max-height:calc(100vh - 280px);overflow-y:auto;z-index:80}
+.ir-toc-column.hidden,.ir-toc-column.ir-toc-auto-hidden{display:none}
+.ir-toc-header{margin-bottom:10px;padding:0 8px}
+.ir-toc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ir-muted)}
 .ir-toc-list{list-style:none;margin:0;padding:0}
-.ir-toc-link{display:block;padding:3px 8px;border-radius:4px;color:var(--ir-muted);text-decoration:none;border-left:2px solid transparent;cursor:pointer;transition:all .15s}
+.ir-toc-link{display:block;position:relative;padding:5px 10px;border-radius:4px;color:var(--ir-muted);text-decoration:none;cursor:pointer;transition:all .15s;font-size:15px;font-weight:600;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ir-toc-link:hover{color:var(--ir-text);background:var(--ir-code-bg)}
-.ir-toc-link.active{color:var(--ir-link);border-left-color:var(--ir-link)}
-.ir-toc-l1{padding-left:8px;font-weight:600;font-size:13px}
-.ir-toc-l2{padding-left:24px;font-size:13px}
-.ir-toc-l3{padding-left:40px;font-size:12px}
-.ir-toc-l4{padding-left:56px;font-size:12px}
+.ir-toc-link.active{color:var(--ir-link)}
+.ir-toc-link.active::after{content:"";position:absolute;right:6px;top:50%;transform:translateY(-50%);width:8px;height:8px;background:var(--ir-link);clip-path:polygon(0 0,100% 50%,0 100%)}
+.ir-toc-l1{padding-left:10px;font-weight:700;font-size:15px}
+.ir-toc-l2{padding-left:26px;font-size:14px;font-weight:500}
+.ir-toc-l3{padding-left:42px;font-size:13px;font-weight:400}
+.ir-toc-l4{padding-left:58px;font-size:13px;font-weight:400}
+.ir-main-col{max-width:var(--ir-max-width);margin:0 auto}
 .ir-math{font-family:"Times New Roman","STIX Two Text","Latin Modern Math",serif;font-style:italic;padding:0 2px}
 .ir-footer{text-align:center;color:var(--ir-muted);font-size:.85em;margin-top:60px;padding-top:24px;border-top:1px solid var(--ir-border)}
 .ir-article figcaption{text-align:center;font-size:.85em;color:var(--ir-muted);margin:.6em 0 1.5em;font-style:italic}
@@ -418,6 +440,10 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
   let zhihuOverlayEl: HTMLIFrameElement | null = null;
   let zhihuOverlayActive = false;
   let savedBodyOverflow = "";
+
+  // 模块级 positionToc 引用，供外部（margin 变化、syncPrefsToIframe）调用
+  let normalPositionToc: (() => void) | null = null;
+  let iframePositionToc: (() => void) | null = null;
 
   // 同步设置到 iframe 内
   function syncPrefsToIframe(): void {
@@ -488,6 +514,9 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
     if (container) {
       (container as HTMLElement).style.maxWidth = (prefs as any).margin + "px";
     }
+
+    // 边距变化后重新定位目录
+    iframePositionToc?.();
   }
 
   function buildZhihuOverlayReader(content: ExtractedContent): void {
@@ -543,7 +572,7 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
 
     // iframe HTML
     const fontBaseEsc = fontBase.replace(/'/g, "\\'").replace(/"/g, '\\"');
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const html = `<!DOCTYPE html><html data-ir-theme="${theme}" style="--ir-bg:${c.bg};--ir-text:${c.text};--ir-heading:${c.heading};--ir-muted:${c.muted};--ir-border:${c.border};--ir-toolbar-bg:${c.toolbarBg};--ir-link:${c.link};--ir-code-bg:${c.codeBg};--ir-blockquote-border:${c.blockquoteBorder};--ir-blockquote-bg:${c.blockquoteBg};--ir-max-width:${margin}px;--ir-font-size:${fontSize}px;--ir-line-height:${lineHeight}"><head><meta charset="UTF-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       <style>
         *,*::before,*::after{box-sizing:border-box}
@@ -552,7 +581,33 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         .ir-toolbar-title{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.85em;color:${c.muted}}
         .ir-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:6px;background:transparent;color:${c.text};font-size:16px;cursor:pointer;transition:background .15s}
         .ir-btn:hover{background:${c.border}}
+        .ir-toc-btn{display:none}
+        .ir-toc-btn.has-toc{display:inline-flex}
+        .ir-ai-panel{position:fixed;top:64px;left:16px;width:300px;z-index:90;background:var(--ir-bg);border:1px solid var(--ir-border);border-radius:10px;font-size:13px;line-height:1.5;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+        .ir-ai-panel.collapsed .ir-ai-summary-body{max-height:0!important;opacity:0;overflow:hidden}
+        .ir-ai-panel.collapsed .ir-ai-summary{padding:10px 14px}
+        .ir-ai-summary{padding:14px 14px 12px;transition:padding .2s ease}
+        .ir-ai-summary-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--ir-muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+        .ir-ai-summary-toggle{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:none;border-radius:4px;background:transparent;color:var(--ir-muted);cursor:pointer}
+        .ir-ai-summary-toggle svg{width:12px;height:12px;transition:transform .2s ease}
+        .ir-ai-panel.collapsed .ir-ai-summary-toggle svg{transform:rotate(-90deg)}
+        .ir-ai-summary-body{transition:max-height .2s ease,opacity .2s ease;overflow:hidden}
+        .ir-ai-summary-content{font-size:13px;line-height:1.6;color:var(--ir-text);padding:10px;border-radius:6px;background:var(--ir-code-bg);max-height:200px;overflow-y:auto}
+        .ir-ai-summary-empty{color:var(--ir-muted);font-size:13px;text-align:center;padding:14px 8px}
+        .ir-ai-summary-actions{display:flex;gap:6px;margin-top:10px}
+        .ir-ai-summary-btn{flex:1;padding:7px 10px;font-size:12px;border:1px solid var(--ir-border);border-radius:6px;background:transparent;color:var(--ir-text);cursor:pointer}
+        .ir-ai-summary-btn.primary{background:var(--ir-link);border-color:var(--ir-link);color:#fff}
         .ir-container{max-width:${margin}px;margin:0 auto;padding:40px 24px 80px}
+        .ir-toc-column{position:fixed;bottom:16px;min-width:180px;max-width:260px;max-height:calc(100vh - 280px);overflow-y:auto;z-index:80}
+        .ir-toc-column.hidden,.ir-toc-column.ir-toc-auto-hidden{display:none}
+        .ir-toc-header{margin-bottom:10px;padding:0 8px}
+        .ir-toc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ir-muted)}
+        .ir-toc-list{list-style:none;margin:0;padding:0}
+        .ir-toc-link{display:block;position:relative;padding:5px 10px;border-radius:4px;color:var(--ir-muted);text-decoration:none;cursor:pointer;transition:all .15s;font-size:15px;font-weight:600;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ir-toc-link:hover{color:var(--ir-text);background:var(--ir-code-bg)}
+        .ir-toc-link.active{color:var(--ir-link)}
+        .ir-toc-link.active::after{content:"";position:absolute;right:6px;top:50%;transform:translateY(-50%);width:8px;height:8px;background:var(--ir-link);clip-path:polygon(0 0,100% 50%,0 100%)}
+        .ir-main-col{max-width:${margin}px;margin:0 auto}
         .ir-header{margin-bottom:48px;padding-bottom:24px;border-bottom:1px solid ${c.border}}
         .ir-headline{font-size:2em;line-height:1.4;font-weight:700;color:${c.heading};margin:0 0 12px;letter-spacing:-.01em}
         .ir-sitename{color:${c.muted};font-size:.85em;text-transform:uppercase;letter-spacing:.05em;margin:0}
@@ -587,10 +642,33 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         <button class="ir-btn" id="ir-back" title="返回原文">×</button>
         <span class="ir-toolbar-title">${esc(t)}</span>
         <div class="ir-toolbar-right" style="display:flex;gap:4px">
-          <button class="ir-btn" id="ir-summarize" title="AI 摘要（Phase 2）">&#128203;</button>
+          <button class="ir-btn" id="ir-summarize" title="AI 摘要">&#128203;</button>
           <button class="ir-btn ir-toc-btn" id="ir-toc-btn" title="目录" style="display:none">&#9776;</button>
           <button class="ir-btn" id="ir-fullscreen" title="全屏阅读">&#9974;</button>
         </div>
+      </div>
+      <div class="ir-ai-panel" id="ir-ai-panel">
+        <div class="ir-ai-summary">
+          <div class="ir-ai-summary-title">
+            AI 摘要
+            <button class="ir-ai-summary-toggle" id="ir-ai-summary-toggle" title="折叠">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.7 13.7L5 13l4-4-4-4 .7-.7 4.7 4.7-4.7 4.7z"/></svg>
+            </button>
+          </div>
+          <div class="ir-ai-summary-body">
+            <div class="ir-ai-summary-empty" id="ir-ai-summary-empty">点击生成摘要开始</div>
+            <div class="ir-ai-summary-content" id="ir-ai-summary-content" style="display:none"></div>
+            <div class="ir-ai-summary-actions">
+              <button class="ir-ai-summary-btn primary" id="ir-ai-summarize-btn">生成摘要</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ir-toc-column hidden" id="ir-toc-column">
+        <div class="ir-toc-header">
+          <div class="ir-toc-title">目录</div>
+        </div>
+        <div class="ir-toc-list" id="ir-toc-list"></div>
       </div>
       <main class="ir-container">
         <header class="ir-header">
@@ -599,10 +677,6 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         <article class="ir-article">${content.content}</article>
         <footer class="ir-footer"><p>— 约 ${rt} 分钟阅读 —</p></footer>
       </main>
-      <nav class="ir-toc-sidebar" id="ir-toc-sidebar" style="position:fixed;top:48px;right:-300px;bottom:0;width:260px;z-index:90;overflow-y:auto;padding:24px 16px 40px;background:${c.bg};border-left:1px solid ${c.border};font-size:13px;line-height:1.5;transition:right .25s ease">
-        <div class="ir-toc-title" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:${c.muted};margin-bottom:12px;padding:0 8px">目录</div>
-        <div class="ir-toc-list" id="ir-toc-list" style="list-style:none;margin:0;padding:0"></div>
-      </nav>
       </body></html>`;
 
     // 创建 iframe
@@ -636,10 +710,7 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         else document.exitFullscreen?.();
       });
 
-      // 绑定 AI 摘要按钮
-      iframeDoc.getElementById("ir-summarize")?.addEventListener("click", () => {
-        showToast("AI 摘要功能将在 Phase 2 中实现");
-      });
+
 
       // 目录：生成 TOC 并绑定显示/隐藏
       (function buildToc() {
@@ -649,22 +720,17 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
         console.log("[ImmerseReader][iframe] headings found:", headings.length);
         if (headings.length < 2) return;
         const tocBtn = iframeDoc.getElementById("ir-toc-btn");
-        const tocSidebar = iframeDoc.getElementById("ir-toc-sidebar");
+        const tocColumn = iframeDoc.getElementById("ir-toc-column");
         const tocList = iframeDoc.getElementById("ir-toc-list");
-        if (!tocBtn || !tocSidebar || !tocList) return;
+        if (!tocBtn || !tocList) return;
         tocBtn.style.setProperty("display", "inline-flex", "important");
-        // 生成目录项样式
-        const linkBaseStyle = "display:block;padding:3px 8px;border-radius:4px;color:" + c.muted + ";text-decoration:none;border-left:2px solid transparent;cursor:pointer;transition:all .15s";
+        // 生成目录项
         headings.forEach((h, i) => {
           const level = parseInt(h.tagName.charAt(1));
           const id = "ir-h-" + i;
           (h as HTMLElement).id = id;
           const link = iframeDoc.createElement("a");
-          link.style.cssText = linkBaseStyle;
-          if (level === 1) link.style.paddingLeft = "8px";
-          else if (level === 2) link.style.paddingLeft = "24px";
-          else if (level === 3) link.style.paddingLeft = "40px";
-          else link.style.paddingLeft = "56px";
+          link.className = "ir-toc-link ir-toc-l" + level;
           link.textContent = (h.textContent || "").trim();
           link.href = "#" + id;
           link.addEventListener("click", (ev) => {
@@ -674,10 +740,61 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
           });
           tocList.appendChild(link);
         });
+        // 目录定位：紧贴正文左侧，空间不足时自动隐藏
+        function positionToc() {
+          if (!tocColumn || !article) return;
+          // 用户手动隐藏时不处理
+          if (tocColumn.classList.contains("hidden")) return;
+          // 临时移除自动隐藏以测量实际宽度
+          const wasAutoHidden = tocColumn.classList.contains("ir-toc-auto-hidden");
+          if (wasAutoHidden) tocColumn.classList.remove("ir-toc-auto-hidden");
+          const tocWidth = tocColumn.offsetWidth;
+          const articleRect = article.getBoundingClientRect();
+          const gap = 24;
+          const minLeft = 16;
+          const availableSpace = articleRect.left - gap - minLeft;
+          if (tocWidth > availableSpace) {
+            // 空间不足，自动隐藏
+            tocColumn.classList.add("ir-toc-auto-hidden");
+            return;
+          }
+          let left = articleRect.left - tocWidth - gap;
+          if (left < minLeft) left = minLeft;
+          tocColumn.style.left = left + "px";
+        }
+        iframePositionToc = positionToc;
+        // 目录按钮：切换目录显示
         tocBtn.addEventListener("click", () => {
-          const showing = tocSidebar.classList.contains("open");
-          tocSidebar.classList.toggle("open");
-          tocSidebar.style.right = showing ? "-300px" : "0";
+          if (!tocColumn) return;
+          tocColumn.classList.toggle("hidden");
+          if (!tocColumn.classList.contains("hidden")) {
+            positionToc();
+          }
+        });
+        positionToc();
+        iframe.contentWindow?.addEventListener("resize", positionToc);
+      })();
+
+      // AI 摘要按钮
+      (function bindAiSummarize() {
+        const aiPanel = iframeDoc.getElementById("ir-ai-panel");
+        const aiSummaryToggle = iframeDoc.getElementById("ir-ai-summary-toggle");
+        const summarizeBtn = iframeDoc.getElementById("ir-summarize");
+        const aiSummarizeBtn = iframeDoc.getElementById("ir-ai-summarize-btn");
+        // AI 摘要折叠按钮
+        aiSummaryToggle?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          aiPanel?.classList.toggle("collapsed");
+        });
+        // 工具栏 AI 摘要按钮
+        summarizeBtn?.addEventListener("click", () => {
+          aiPanel?.classList.toggle("collapsed");
+          showToast("AI 摘要功能将在 Phase 2 中实现");
+        });
+        // 侧栏内生成摘要按钮
+        aiSummarizeBtn?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showToast("AI 摘要功能将在 Phase 2 中实现");
         });
       })();
 
@@ -834,21 +951,40 @@ function buildReaderView(content: ExtractedContent) {
       '  <button class="ir-btn ir-btn-close" id="ir-back" title="返回原文">&times;</button>' +
       '  <span class="ir-toolbar-title">' + t + '</span>' +
       '  <div class="ir-toolbar-right">' +
-      '    <button class="ir-btn" id="ir-summarize" title="AI 摘要（Phase 2）">&#128203;</button>' +
+      '    <button class="ir-btn" id="ir-summarize" title="AI 摘要">&#128203;</button>' +
       '    <button class="ir-btn ir-toc-btn" id="ir-toc-btn" title="目录">&#9776;</button>' +
       '    <button class="ir-btn" id="ir-fullscreen" title="全屏阅读">&#9974;</button>' +
       '  </div></div>' +
+      '<div class="ir-ai-panel" id="ir-ai-panel">' +
+      '  <div class="ir-ai-summary">' +
+      '    <div class="ir-ai-summary-title">' +
+      '      AI &#25688;&#35201;' +
+      '      <button class="ir-ai-summary-toggle" id="ir-ai-summary-toggle" title="折叠">' +
+      '        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.7 13.7L5 13l4-4-4-4 .7-.7 4.7 4.7-4.7 4.7z"/></svg>' +
+      '      </button>' +
+      '    </div>' +
+      '    <div class="ir-ai-summary-body">' +
+      '      <div class="ir-ai-summary-empty" id="ir-ai-summary-empty">&#28857;&#20987;&#29983;&#25104;&#25688;&#35201;&#24320;&#22987;</div>' +
+      '      <div class="ir-ai-summary-content" id="ir-ai-summary-content" style="display:none"></div>' +
+      '      <div class="ir-ai-summary-actions">' +
+      '        <button class="ir-ai-summary-btn primary" id="ir-ai-summarize-btn">&#29983;&#25104;&#25688;&#35201;</button>' +
+      '      </div>' +
+      '    </div>' +
+      '  </div>' +
+      '</div>' +
+      '<div class="ir-toc-column hidden" id="ir-toc-column">' +
+      '  <div class="ir-toc-header">' +
+      '    <div class="ir-toc-title">&#30446;&#24405;</div>' +
+      '  </div>' +
+      '  <div class="ir-toc-list" id="ir-toc-list"></div>' +
+      '</div>' +
       '<main class="ir-container">' +
       '  <header class="ir-header">' +
       '    <h1 class="ir-headline">' + t + '</h1>' + b + s +
       '  </header>' +
       '  <article class="ir-article">' + content.content + '</article>' +
       '  <footer class="ir-footer"><p>&mdash; 约 ' + rt + ' 分钟阅读 &mdash;</p></footer>' +
-      '</main>' +
-      '<nav class="ir-toc-sidebar" id="ir-toc-sidebar">' +
-      '  <div class="ir-toc-title">&#30446;&#24405;</div>' +
-      '  <div class="ir-toc-list" id="ir-toc-list"></div>' +
-      '</nav>';
+      '</main>';
 
     const html = document.createElement("html");
     html.setAttribute("data-ir-theme", theme);
@@ -856,9 +992,42 @@ function buildReaderView(content: ExtractedContent) {
     html.style.setProperty("--ir-font-size", fontSize + "px");
     html.style.setProperty("--ir-max-width", margin + "px");
     html.style.setProperty("--ir-line-height", String(lineHeight));
+    html.style.setProperty("--ir-toolbar-height", "48px");
+
+    // 计算主题颜色
+    const themeMap: Record<string, { bg: string; text: string; heading: string; muted: string; border: string; toolbarBg: string; link: string; codeBg: string; blockquoteBorder: string; blockquoteBg: string }> = {
+      light: { bg: "#faf9f6", text: "#1a1a1a", heading: "#0a0a0a", muted: "#666", border: "#e0ddd5", toolbarBg: "rgba(250,249,246,.95)", link: "#2563eb", codeBg: "#f1f0ed", blockquoteBorder: "#c4b998", blockquoteBg: "#f3f0ea" },
+      sepia: { bg: "#f4e8c1", text: "#3b3226", heading: "#2a2218", muted: "#7a6b50", border: "#d4c4a0", toolbarBg: "rgba(244,232,193,.95)", link: "#8b5e3c", codeBg: "#e8dcc0", blockquoteBorder: "#b8a888", blockquoteBg: "#ede0c0" },
+      dark: { bg: "#1a1a2e", text: "#e0d6c8", heading: "#f0ebe0", muted: "#9a8f80", border: "#2d2d44", toolbarBg: "rgba(26,26,46,.95)", link: "#7eb8f0", codeBg: "#222240", blockquoteBorder: "#4a4a6a", blockquoteBg: "#22223a" },
+      green: { bg: "#c7edcc", text: "#1a3b2e", heading: "#0a2a1e", muted: "#3d6b50", border: "#a8d4b0", toolbarBg: "rgba(199,237,204,.95)", link: "#1a6b40", codeBg: "#b8e0c0", blockquoteBorder: "#8ab898", blockquoteBg: "#b8e0c0" },
+    };
+    let tc;
     if (theme === "custom" && customBg && customText && customLink) {
-      applyCustomTheme(customBg, customText, customLink);
+      tc = {
+        bg: customBg,
+        text: customText,
+        heading: customText,
+        muted: adjustColor(customText, -50),
+        border: adjustColor(customText, 200),
+        toolbarBg: hexToRgba(customBg, 0.95),
+        link: customLink,
+        codeBg: adjustColor(customBg, -10),
+        blockquoteBorder: customLink,
+        blockquoteBg: adjustColor(customBg, -3),
+      };
+    } else {
+      tc = themeMap[theme] || themeMap.light;
     }
+    html.style.setProperty("--ir-bg", tc.bg);
+    html.style.setProperty("--ir-text", tc.text);
+    html.style.setProperty("--ir-heading", tc.heading);
+    html.style.setProperty("--ir-muted", tc.muted);
+    html.style.setProperty("--ir-border", tc.border);
+    html.style.setProperty("--ir-toolbar-bg", tc.toolbarBg);
+    html.style.setProperty("--ir-link", tc.link);
+    html.style.setProperty("--ir-code-bg", tc.codeBg);
+    html.style.setProperty("--ir-blockquote-border", tc.blockquoteBorder);
+    html.style.setProperty("--ir-blockquote-bg", tc.blockquoteBg);
 
     html.appendChild(head);
     html.appendChild(body);
@@ -953,9 +1122,6 @@ function buildReaderView(content: ExtractedContent) {
     document.getElementById("ir-fullscreen")?.addEventListener("click", () => {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen();
       else document.exitFullscreen();
-    });
-    document.getElementById("ir-summarize")?.addEventListener("click", () => {
-      showToast("AI 摘要功能将在 Phase 2 中实现");
     });
 
     // ==== Lightbox for images ====
@@ -1115,8 +1281,31 @@ function buildReaderView(content: ExtractedContent) {
 
     // ==== Build TOC sidebar ====
     const tocList = document.getElementById("ir-toc-list");
-    const tocSidebar = document.getElementById("ir-toc-sidebar");
+    const tocColumn = document.getElementById("ir-toc-column");
     const articleEl = document.querySelector(".ir-article");
+    // 目录定位：紧贴正文左侧，空间不足时自动隐藏
+    function positionToc() {
+      if (!tocColumn || !articleEl) return;
+      // 用户手动隐藏时不处理
+      if (tocColumn.classList.contains("hidden")) return;
+      // 临时移除自动隐藏以测量实际宽度
+      const wasAutoHidden = tocColumn.classList.contains("ir-toc-auto-hidden");
+      if (wasAutoHidden) tocColumn.classList.remove("ir-toc-auto-hidden");
+      const tocWidth = tocColumn.offsetWidth;
+      const articleRect = articleEl.getBoundingClientRect();
+      const gap = 24;
+      const minLeft = 16;
+      const availableSpace = articleRect.left - gap - minLeft;
+      if (tocWidth > availableSpace) {
+        // 空间不足，自动隐藏
+        tocColumn.classList.add("ir-toc-auto-hidden");
+        return;
+      }
+      let left = articleRect.left - tocWidth - gap;
+      if (left < minLeft) left = minLeft;
+      tocColumn.style.left = left + "px";
+    }
+    normalPositionToc = positionToc;
     if (tocList && articleEl) {
       const headings = articleEl.querySelectorAll("h1, h2, h3, h4");
       if (headings.length > 3) {
@@ -1145,15 +1334,34 @@ function buildReaderView(content: ExtractedContent) {
         }, { rootMargin: "-60px 0px -50% 0px" });
        headings.forEach(h => observer.observe(h));
         document.getElementById("ir-toc-btn")?.classList.add("has-toc");
+        // 目录按钮：切换目录显示
         document.getElementById("ir-toc-btn")?.addEventListener("click", () => {
-          if (tocSidebar) {
-            const showing = tocSidebar.style.right === "0px" || tocSidebar.classList.contains("open");
-            tocSidebar.style.right = showing ? "-300px" : "0px";
-            tocSidebar.classList.toggle("open");
+          if (!tocColumn) return;
+          tocColumn.classList.toggle("hidden");
+          if (!tocColumn.classList.contains("hidden")) {
+            positionToc();
           }
         });
+        positionToc();
+        window.addEventListener("resize", positionToc);
       }
     }
+
+    // ==== AI Summary ====
+    const aiPanel = document.getElementById("ir-ai-panel");
+    const aiSummaryToggle = document.getElementById("ir-ai-summary-toggle");
+    // AI 摘要折叠按钮
+    aiSummaryToggle?.addEventListener("click", () => {
+      aiPanel?.classList.toggle("collapsed");
+    });
+    // 工具栏 AI 摘要按钮：切换 AI 面板折叠
+    document.getElementById("ir-summarize")?.addEventListener("click", () => {
+      aiPanel?.classList.toggle("collapsed");
+      showToast("AI 摘要功能将在 Phase 2 中实现");
+    });
+    document.getElementById("ir-ai-summarize-btn")?.addEventListener("click", () => {
+      showToast("AI 摘要功能将在 Phase 2 中实现");
+    });
 
     // ==== Progress bar scroll tracking ====
     const progressFill = document.getElementById("ir-progress-fill");
