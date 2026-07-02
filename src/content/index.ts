@@ -877,13 +877,12 @@ html[data-ir-theme],html[data-ir-theme] body{margin:0;padding:0;background:var(-
             }
             tocLinks.forEach((link, i) => {
               if (i === activeIdx) {
-                link.style.color = c.link;
-                link.style.borderLeftColor = c.link;
-                link.style.background = "rgba(0,0,0,0.03)";
+                if (!link.classList.contains("active")) {
+                  link.classList.add("active");
+                  link.scrollIntoView({ block: "nearest" });
+                }
               } else {
-                link.style.color = c.muted;
-                link.style.borderLeftColor = "transparent";
-                link.style.background = "transparent";
+                link.classList.remove("active");
               }
             });
           }
@@ -1328,7 +1327,11 @@ function buildReaderView(content: ExtractedContent) {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
               tocLinks.forEach(l => l.classList.remove("active"));
-              tocList.querySelector('[href="#' + entry.target.id + '"]')?.classList.add("active");
+              const activeLink = tocList.querySelector('[href="#' + entry.target.id + '"]') as HTMLElement;
+              if (activeLink) {
+                activeLink.classList.add("active");
+                activeLink.scrollIntoView({ block: "nearest" });
+              }
             }
           });
         }, { rootMargin: "-60px 0px -50% 0px" });
